@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Predator - Web Attack Panel</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div id="particle-background"></div>
+
+    <div class="main-container">
+        <header class="global-header">
+            <div class="logo-container">
+                <i class="fa-solid fa-shield-halved logo-icon"></i>
+            </div>
+            <nav class="global-nav">
+                <a href="#" class="nav-item" data-tooltip="Dashboard"><i class="fa-solid fa-table-columns"></i></a>
+                <a href="#" class="nav-item active" data-tooltip="New Attack"><i class="fa-solid fa-crosshairs"></i></a>
+                <a href="#" class="nav-item" data-tooltip="History"><i class="fa-solid fa-clock-rotate-left"></i></a>
+                <a href="#" class="nav-item" data-tooltip="Settings"><i class="fa-solid fa-gear"></i></a>
+            </nav>
+        </header>
+
+        <main class="content-area">
+
+            <div class="wizard-step active" id="step1">
+                <div class="panel-container">
+                    <div class="glass-panel form-panel">
+                        <h1 class="panel-title">New Attack Vector</h1>
+                        <p class="panel-subtitle">Define Target and Credentials</p>
+
+                        <div class="form-group">
+                            <input type="text" id="username" class="form-input" placeholder=" " required>
+                            <label for="username" class="form-label">Username / Email</label>
+                            <div class="autofill-pills">
+                                <span>admin</span><span>root</span><span>test@example.com</span>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                             <label class="micro-label">Password List</label>
+                             <div class="drop-zone">
+                                 <i class="fa-solid fa-microchip"></i>
+                                 <p>Drag & Drop .txt or .csv file</p>
+                                 <span>or <a>browse files</a></span>
+                             </div>
+                        </div>
+
+                        <div class="form-group">
+                             <input type="url" id="login-url" class="form-input" placeholder=" " required>
+                             <label for="login-url" class="form-label">Login URL</label>
+                        </div>
+
+                        <button class="btn btn-primary btn-analyze">
+                            <span class="btn-text">Analyze Form</span>
+                            <span class="spinner"></span>
+                        </button>
+                    </div>
+
+                    <div class="visualizer-panel">
+                        <div class="screenshot-thumbnail">
+                            <i class="fa-solid fa-camera"></i>
+                            <p>Enter a URL to preview the target page</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="wizard-step" id="step2">
+                 <h1 class="panel-title">Options & Payload</h1>
+                 <div class="options-grid">
+                     <div class="glass-panel">
+                         <label class="micro-label">Concurrency</label>
+                         <div class="knob-ui">
+                             <div class="knob-value">50</div>
+                         </div>
+                         <p class="panel-subtitle">Threads: 1 - 100</p>
+                     </div>
+                     <div class="glass-panel">
+                         <label class="micro-label">Rate Limiter</label>
+                         <img src="https://i.imgur.com/gD3I4sJ.png" alt="Waveform graph" style="width: 100%; opacity: 0.6; margin-top: 10px;">
+                     </div>
+                     <div class="glass-panel large-panel">
+                         <label class="micro-label">Headers & Proxies (JSON)</label>
+                         <div class="code-editor">
+                            <pre><code>{
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+    "Accept-Language": "en-US,en;q=0.9",
+    "proxies": [
+        "http://user:pass@127.0.0.1:8080"
+    ]
+}</code></pre>
+                         </div>
+                     </div>
+                 </div>
+            </div>
+
+            <div class="wizard-step" id="step3">
+                 <div class="monitor-header">
+                     <h1 class="panel-title">Launch & Monitor</h1>
+                     <div class="launch-controls">
+                        <button class="btn-launch-cube">▶ LAUNCH</button>
+                     </div>
+                 </div>
+                 <div class="monitor-grid">
+                     <div class="glass-panel terminal-feed">
+                         <div class="terminal-header">
+                             <span>LIVE FEED</span>
+                             <div class="terminal-filters">
+                                 <span class="active">ALL</span>
+                                 <span>HITS</span>
+                                 <span>FAILS</span>
+                             </div>
+                         </div>
+                         <div class="terminal-body">
+                             <p><span class="status-time">[18:24:24]</span><span class="status-info">Connecting to target...</span></p>
+                             <p><span class="status-time">[18:24:25]</span><span class="status-fail">FAIL</span> :: user: admin, pass: 123456</p>
+                             <p><span class="status-time">[18:24:26]</span><span class="status-fail">FAIL</span> :: user: admin, pass: password</p>
+                             <p><span class="status-time">[18:24:27]</span><span class="status-success">HIT</span> :: user: admin, pass: P@ssw0rd!_2025</p>
+                             <p><span class="status-time">[18:24:28]</span><span class="status-info">Pausing attack...</span></p>
+                         </div>
+                     </div>
+                     <div class="metrics-hud">
+                         <div class="hud-pod">
+                             <label class="micro-label">TOTAL ATTEMPTS</label>
+                             <span class="hud-value">1,337</span>
+                         </div>
+                         <div class="hud-pod">
+                            <label class="micro-label">HITS</label>
+                            <span class="hud-value success-text">1</span>
+                         </div>
+                         <div class="hud-pod">
+                            <label class="micro-label">ELAPSED TIME</label>
+                            <span class="hud-value">00:00:04</span>
+                         </div>
+                         <div class="hud-pod">
+                            <label class="micro-label">ETA</label>
+                            <span class="hud-value">~12:45:10</span>
+                         </div>
+                     </div>
+                 </div>
+            </div>
+
+        </main>
+    </div>
+</body>
+</html>
