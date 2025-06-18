@@ -1,11 +1,21 @@
-from flask import Flask, jsonify, request, render_template # Added render_template
+from flask import Flask, jsonify, request, render_template
 import requests
 from bs4 import BeautifulSoup
-from urllib.parse import urljoin, urlparse # To resolve relative URLs, and parse for domain/path comparison
+from urllib.parse import urljoin, urlparse
 
-app = Flask(__name__, static_folder='static', template_folder='templates') # Explicitly define folders
+# Attempt to import from local common_field_names.py
+try:
+    from .common_field_names import COMMON_USERNAME_FIELDS, COMMON_PASSWORD_FIELDS, COMMON_CSRF_TOKEN_FIELDS
+except ImportError:
+    # Fallback for environments where relative import might fail (e.g. running script directly)
+    import common_field_names
+    COMMON_USERNAME_FIELDS = common_field_names.COMMON_USERNAME_FIELDS
+    COMMON_PASSWORD_FIELDS = common_field_names.COMMON_PASSWORD_FIELDS
+    COMMON_CSRF_TOKEN_FIELDS = common_field_names.COMMON_CSRF_TOKEN_FIELDS
 
-# Serve the main index.html page
+
+app = Flask(__name__, static_folder='static', template_folder='templates')
+
 @app.route('/')
 def serve_index():
     return render_template('index.html')
@@ -15,93 +25,120 @@ def analyze_url():
     app.logger.info(f"Received request for {request.path} from {request.remote_addr}")
     if request.is_json:
         app.logger.debug(f"Request JSON payload: {request.get_json()}")
+
+    data = request.get_json()
+    if not data or 'url' not in data:
+        app.logger.warning(f"Missing 'url' in request payload from {request.remote_addr}")
+        return jsonify({"error": "Missing 'url' in request payload"}), 400
+
+    target_url = data['url']
+
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+    }
+
     try:
-        data = request.get_json()
-        if not data or 'url' not in data:
-            app.logger.warning(f"Missing 'url' in request payload from {request.remote_addr}")
-            return jsonify({"error": "Missing 'url' in request payload"}), 400
-
-        target_url = data['url']
-
-        headers = { # Mimic a common browser User-Agent
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-        }
-
-        # Use a session object to handle cookies automatically
         session = requests.Session()
-        response = session.get(target_url, headers=headers, timeout=10) # 10 second timeout
-        response.raise_for_status() # Raise an exception for HTTP errors (4xx or 5xx)
-
+        response = session.get(target_url, headers=headers, timeout=10, allow_redirects=True)
+        response.raise_for_status()
         soup = BeautifulSoup(response.text, 'html.parser')
 
-        # --- Form Detection Logic (Basic) ---
-        login_form = None
-        password_input_field = None # Renamed from password_input to avoid confusion
+        # --- Password Field Detection (Refined) ---
+        password_input_field = None
+        all_password_inputs = soup.find_all('input', {'type': 'password'})
 
-        # Try to find a form containing a password input
-        password_inputs = soup.find_all('input', {'type': 'password'})
-        if not password_inputs:
+        if not all_password_inputs:
             return jsonify({"error": "No password input field found on the page."}), 404
 
-        # For simplicity, take the first password input found.
-        password_input_field = password_inputs[0]
-        login_form = password_input_field.find_parent('form')
+        if len(all_password_inputs) == 1:
+            password_input_field = all_password_inputs[0]
+        else: # Multiple password fields, try to find the best match using COMMON_PASSWORD_FIELDS
+            for p_input in all_password_inputs:
+                p_name = p_input.get('name', '').lower()
+                p_id = p_input.get('id', '').lower()
+                for common_p_name in COMMON_PASSWORD_FIELDS:
+                    if common_p_name.lower() == p_name or common_p_name.lower() == p_id:
+                        password_input_field = p_input
+                        app.logger.info(f"Multiple password fields found. Selected '{p_name or p_id}' based on common names.")
+                        break
+                if password_input_field:
+                    break
+            if not password_input_field: # Still none matched common names, pick the first one
+                password_input_field = all_password_inputs[0]
+                app.logger.info("Multiple password fields found. No common name match, selected the first one.")
 
+        login_form = password_input_field.find_parent('form')
         if not login_form:
             return jsonify({"error": "Password field found, but it's not within a form."}), 404
 
-        # --- Extract Form Details ---
-        action_url = login_form.get('action')
-        post_url = urljoin(target_url, action_url) # Resolve relative path to absolute
-        form_method = login_form.get('method', 'POST').upper() # Default to POST
+        password_field_name = password_input_field.get('name') or password_input_field.get('id') or "Could not auto-detect"
 
-        # --- Username Field Detection (Basic Heuristic) ---
+        # --- Username Field Detection (Using COMMON_USERNAME_FIELDS and case-insensitive) ---
         username_field_name = None
-        common_username_names = ['username', 'email', 'user', 'login', 'log', 'usr', 'id', 'user_id', 'login_id', 'name', 'txtUser', 'txtEmail']
-
-        text_inputs = login_form.find_all('input', {'type': ['text', 'email', 'tel']})
+        text_inputs = login_form.find_all('input', {'type': ['text', 'email', 'tel', 'number']}) # Added 'number' for some ID fields
 
         found_username_input = None
-        # 1. Try common names
-        for name_attr_val in common_username_names:
+        # 1. Try common names (case-insensitive)
+        for name_candidate in COMMON_USERNAME_FIELDS:
             for inp in text_inputs:
-                if (inp.get('name') and inp.get('name').lower() == name_attr_val.lower()) or \
-                   (inp.get('id') and inp.get('id').lower() == name_attr_val.lower()):
+                if inp == password_input_field: continue # Skip the password field itself
+                input_name_attr = inp.get('name')
+                input_id_attr = inp.get('id')
+                if (input_name_attr and name_candidate.lower() == input_name_attr.lower()) or \
+                   (input_id_attr and name_candidate.lower() == input_id_attr.lower()):
                     found_username_input = inp
                     break
             if found_username_input:
                 break
 
-        # 2. Fallback: try to find any text input that appears before the password input
+        # 2. Fallback: try to find any text-like input that appears before the password input
         if not found_username_input:
+            app.logger.info("No common username field name matched. Trying proximity heuristic.")
+            # Sort inputs by their appearance order in the form if possible
+            # Note: sourceline might not always be available depending on parser and HTML structure.
+            # This is a basic proximity check.
+            potential_username_fields = []
             for inp in text_inputs:
-                if inp != password_input_field and hasattr(inp, 'sourceline') and hasattr(password_input_field, 'sourceline') and inp.sourceline < password_input_field.sourceline:
-                    # Basic check: is it "near" the password field (e.g. previous sibling or parent's previous sibling)
-                    # This can be complex, for now, first one before password input
-                    username_field_name = inp.get('name') or inp.get('id')
-                    if username_field_name: # Take the first one that has a name or id
-                        found_username_input = inp
-                        break
+                if inp == password_input_field: continue
+                if hasattr(inp, 'sourceline') and hasattr(password_input_field, 'sourceline'):
+                    if inp.sourceline < password_input_field.sourceline:
+                        potential_username_fields.append(inp)
+                else: # Fallback if sourceline is not available, just consider all non-password text inputs
+                    potential_username_fields.append(inp)
+
+            if potential_username_fields:
+                # Prefer the one closest (last one before) the password field if sourceline was available
+                # Or just the first one found if sourceline is not reliable
+                found_username_input = potential_username_fields[-1] if hasattr(password_input_field, 'sourceline') else potential_username_fields[0]
+
 
         if found_username_input:
             username_field_name = found_username_input.get('name') or found_username_input.get('id')
-        else:
+
+        if not username_field_name: # Final fallback
              username_field_name = "Could not auto-detect"
+        app.logger.info(f"Detected username field: '{username_field_name}'")
 
 
-        password_field_name = password_input_field.get('name') or password_input_field.get('id') or "Could not auto-detect"
+        # --- Extract Other Form Details ---
+        action_url = login_form.get('action', '') # Ensure action_url is a string
+        post_url = urljoin(target_url, action_url)
+        form_method = login_form.get('method', 'POST').upper()
 
-        # --- CSRF Token Detection (Basic) ---
+        # --- CSRF Token Detection (Using COMMON_CSRF_TOKEN_FIELDS and case-insensitive exact match) ---
         csrf_token_name = None
         csrf_token_value = None
-        common_csrf_names = ['csrf_token', '_token', 'csrfmiddlewaretoken', 'authenticity_token', '_csrf', 'xsrf_token']
-
         hidden_inputs = login_form.find_all('input', {'type': 'hidden'})
-        for hidden_input in hidden_inputs:
-            input_name = hidden_input.get('name')
-            if input_name and any(csrf_name.lower() in input_name.lower() for csrf_name in common_csrf_names):
-                csrf_token_name = input_name
-                csrf_token_value = hidden_input.get('value')
+        for hidden_in in hidden_inputs: # Renamed to avoid conflict with outer 'input'
+            input_name = hidden_in.get('name')
+            if input_name:
+                for common_csrf_name_candidate in COMMON_CSRF_TOKEN_FIELDS:
+                    if common_csrf_name_candidate.lower() == input_name.lower():
+                        csrf_token_name = input_name
+                        csrf_token_value = hidden_in.get('value')
+                        app.logger.info(f"Found CSRF token: name='{csrf_token_name}', value='{csrf_token_value}'")
+                        break
+            if csrf_token_name:
                 break
 
         analysis_result = {
@@ -113,6 +150,7 @@ def analyze_url():
             "csrf_token_value": csrf_token_value,
             "cookies": session.cookies.get_dict()
         }
+        app.logger.info(f"Analysis result for {target_url}: {analysis_result}")
         return jsonify(analysis_result), 200
 
     except requests.exceptions.Timeout as e:
@@ -120,21 +158,26 @@ def analyze_url():
         return jsonify({"error": "Request timed out while fetching the URL."}), 504
     except requests.exceptions.RequestException as e:
         app.logger.error(f"RequestException fetching URL {data.get('url', 'N/A')} in /analyze_url: {str(e)}", exc_info=True)
-        return jsonify({"error": f"Error fetching or processing URL: {str(e)}"}), 500 # Keep str(e) for client for RequestExceptions if it's not too verbose
+        return jsonify({"error": f"Error fetching or processing URL. Please ensure the URL is correct and accessible. Details: {str(e)}"}), 500
     except Exception as e:
-        app.logger.error(f"An unexpected error occurred in {request.path}: {str(e)}", exc_info=True)
-        return jsonify({"error": "An unexpected server error occurred."}), 500
+        app.logger.error(f"An unexpected error occurred in {request.path} for URL {data.get('url', 'N/A')}: {str(e)}", exc_info=True)
+        return jsonify({"error": "An unexpected server error occurred during analysis."}), 500
 
 @app.route('/test_credentials', methods=['POST'])
 def test_credentials():
     app.logger.info(f"Received request for {request.path} from {request.remote_addr}")
     if request.is_json:
-        app.logger.debug(f"Request JSON payload (password_list might be long, showing keys): {list(request.get_json().keys()) if request.get_json() else 'None'}")
+        # Avoid logging full lists if they are very large
+        log_payload = {k: v for k, v in request.get_json().items() if k not in ['username_list', 'password_list']}
+        log_payload['username_list_count'] = len(request.get_json().get('username_list', []))
+        log_payload['password_list_count'] = len(request.get_json().get('password_list', []))
+        app.logger.debug(f"Request JSON payload summary: {log_payload}")
+
     try:
         data = request.get_json()
         required_fields = [
             "target_post_url", "username_field_name", "password_field_name",
-            "username_list", "password_list", "form_method" # Changed "username" to "username_list"
+            "username_list", "password_list", "form_method"
         ]
         if not data or not all(field in data for field in required_fields):
             missing = [field for field in required_fields if field not in data]
@@ -144,18 +187,18 @@ def test_credentials():
         target_post_url = data['target_post_url']
         username_field_name = data['username_field_name']
         password_field_name = data['password_field_name']
-        username_list = data['username_list'] # Changed from username
+        username_list = data['username_list']
         password_list = data['password_list']
         form_method = data.get('form_method', 'POST').upper()
 
         if not isinstance(username_list, list):
             app.logger.warning(f"'username_list' is not a list in /test_credentials from {request.remote_addr}")
             return jsonify({"error": "'username_list' must be a list."}), 400
-        if not username_list: # This check implies username_list must have at least one item
+        if not username_list:
             app.logger.warning(f"'username_list' is empty in /test_credentials from {request.remote_addr}")
             return jsonify({"error": "'username_list' cannot be empty."}), 400
 
-        if not isinstance(password_list, list): # Should be guaranteed by frontend, but good practice
+        if not isinstance(password_list, list):
             app.logger.warning(f"'password_list' is not a list in /test_credentials from {request.remote_addr}")
             return jsonify({"error": "'password_list' must be a list."}), 400
         if not password_list:
@@ -174,25 +217,24 @@ def test_credentials():
 
             headers = {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-                'Origin': target_post_url.split('/')[0] + '//' + target_post_url.split('/')[2] if target_post_url.startswith('http') else None,
+                'Origin': urlparse(target_post_url).scheme + '://' + urlparse(target_post_url).netloc if target_post_url.startswith('http') else None,
                 'Referer': target_post_url
             }
-            # Remove Origin if it could not be derived (e.g. relative URL used for post_url, though analyze_url should make it absolute)
-            if headers['Origin'] is None:
+            if headers['Origin'] is None: # Should not happen if target_post_url is absolute
                 del headers['Origin']
 
-            num_attempts = min(len(username_list), len(password_list))
-            app.logger.info(f"Starting paired credential testing. Number of pairs to test: {num_attempts}")
+            num_pairs_to_test = min(len(username_list), len(password_list))
+            app.logger.info(f"Starting paired credential testing. Number of pairs to test: {num_pairs_to_test}")
 
-            if num_attempts == 0:
-                # This case is now less likely due to earlier checks, but good safeguard
-                return jsonify([]), 200
+            if num_pairs_to_test == 0:
+                return jsonify([]), 200 # Should be caught by earlier checks
 
-            for i in range(num_attempts):
+            for i in range(num_pairs_to_test):
                 username_attempt = username_list[i]
                 password_attempt = password_list[i]
 
-                app.logger.info(f"Attempting pair {i+1}/{num_attempts}: User '{username_attempt}' with Password '********'")
+                # Mask password in log, show username
+                app.logger.info(f"Attempting pair {i+1}/{num_pairs_to_test}: User '{username_attempt}' with Password '********'")
 
                 payload = {
                     username_field_name: username_attempt,
@@ -203,7 +245,7 @@ def test_credentials():
 
                 attempt_result = {
                     "username": username_attempt,
-                    "password": password_attempt,
+                    "password": password_attempt, # Backend sends full password, client JS should mask for display
                     "status": "unknown",
                     "response_url": None,
                     "status_code": None,
@@ -211,7 +253,7 @@ def test_credentials():
                 }
 
                 try:
-                    current_cookies = session.cookies.get_dict()
+                    pre_request_cookies = session.cookies.copy()
 
                     if form_method == 'POST':
                         response = session.post(target_post_url, data=payload, headers=headers, timeout=10, allow_redirects=True)
@@ -227,73 +269,77 @@ def test_credentials():
                     attempt_result["response_url"] = response.url
 
                     response_text_lower = response.text.lower()
-                    # Expanded error messages
+
                     common_error_messages = [
                         "incorrect password", "invalid password", "login failed", "login failure",
                         "wrong credentials", "authentication failed", "invalid username or password",
                         "username or password incorrect", "user not found", "account locked",
                         "too many attempts", "session expired", "login error", "access denied",
-                        "unauthorized", "kullanıcı adı veya şifre hatalı", "e-posta veya şifre yanlış" # Turkish examples
+                        "unauthorized", "kullanıcı adı veya şifre hatalı", "e-posta veya şifre yanlış"
                     ]
-                    # Common success keywords
                     common_success_keywords = [
                         "welcome", "dashboard", "my account", "logout", "sign out",
-                        "settings", "profile", "control panel", "logged in as"
+                        "settings", "profile", "control panel", "logged in as", "sign off"
                     ]
 
-                    attempt_result["status"] = "failure" # Default to failure
+                    attempt_result["status"] = "failure"
 
-                    # 1. Check for explicit error messages in response body
-                    found_error_message = None
+                    found_error_message_text = None
                     for err_msg in common_error_messages:
                         if err_msg in response_text_lower:
-                            found_error_message = err_msg
+                            found_error_message_text = err_msg
                             break
 
-                    if found_error_message:
-                        attempt_result["details"] = f"Login failed: Found error message '{found_error_message}' in response."
-                    # 2. Check for non-successful/non-redirect status codes
-                    # Typical success (200-299), redirect (300-399).
-                    # For this specific case, 200 might still be a failure if on the same page with errors.
-                    # Redirects (3xx) are often good signs if not immediately showing an error.
-                    # Client errors (4xx) or Server errors (5xx) are usually failures.
-                    elif response.status_code >= 400:
+                    if found_error_message_text:
+                        attempt_result["details"] = f"Login failed: Found error message '{found_error_message_text}' in response."
+                    elif response.status_code >= 400: # Client or Server error status codes
                         attempt_result["details"] = f"Login attempt failed with HTTP status code: {response.status_code}."
-                    # 3. Potential Success Indicators (only if no explicit errors found and status code is plausible e.g. 200 or 302)
-                    else:
-                        parsed_target_url = urlparse(target_post_url)
+                    else: # Status is < 400 (e.g. 200 OK or 3xx Redirect)
+                        parsed_target_post_url = urlparse(target_post_url)
                         parsed_response_url = urlparse(response.url)
 
-                        # Significant redirect: different domain or different first path segment
-                        is_redirected_significantly = response.history and \
-                                                      (parsed_target_url.netloc != parsed_response_url.netloc or
-                                                       (parsed_target_url.path.split('/')[1] if parsed_target_url.path else '') !=
-                                                       (parsed_response_url.path.split('/')[1] if parsed_response_url.path else ''))
+                        is_redirected = len(response.history) > 0
+                        # Check if redirected to a URL that is different in domain or first path component.
+                        is_redirected_significantly = is_redirected and \
+                            (parsed_target_post_url.netloc != parsed_response_url.netloc or \
+                            (parsed_target_post_url.path.split('/')[1] if parsed_target_post_url.path.count('/') > 1 else '') != \
+                            (parsed_response_url.path.split('/')[1] if parsed_response_url.path.count('/') > 1 else ''))
+
 
                         has_success_keywords_in_url = any(succ_kw in response.url.lower() for succ_kw in common_success_keywords)
                         has_success_keywords_in_body = any(succ_kw in response_text_lower for succ_kw in common_success_keywords)
 
-                        pre_request_cookies_count = len(current_cookies)
-                        post_request_cookies_count = len(session.cookies.get_dict())
+                        # Cookie comparison: Check for new or changed cookies
+                        post_request_cookies = session.cookies.get_dict()
+                        cookies_changed = False
+                        if len(post_request_cookies) > len(pre_request_cookies):
+                            cookies_changed = True
+                        else:
+                            for k, v in post_request_cookies.items():
+                                if k not in pre_request_cookies or pre_request_cookies[k] != v:
+                                    cookies_changed = True
+                                    break
+                        if cookies_changed:
+                             app.logger.info(f"Cookies changed for user {username_attempt} (pass: ****). Before: {len(pre_request_cookies)} keys, After: {len(post_request_cookies)} keys.")
+
 
                         if is_redirected_significantly:
                             attempt_result["status"] = "success"
-                            attempt_result["details"] = f"Success: Redirected to {response.url} (Status: {response.status_code})."
+                            attempt_result["details"] = f"Success: Redirected from login page to {response.url} (Status: {response.status_code})."
                         elif (has_success_keywords_in_url or has_success_keywords_in_body):
                             attempt_result["status"] = "success"
                             attempt_result["details"] = f"Success: Found success keywords in URL/body (Status: {response.status_code})."
-                        elif response.status_code == 200 and post_request_cookies_count > pre_request_cookies_count:
-                             attempt_result["status"] = "success" # Tentative
-                             attempt_result["details"] = f"Possible success: Status 200, new cookies set. Final URL: {response.url}."
+                        elif response.status_code == 200 and cookies_changed and not is_redirected_significantly and not (parsed_target_post_url.path == parsed_response_url.path and parsed_target_post_url.query == parsed_response_url.query) :
+                             # If cookies changed and URL changed (even if not "significantly" by path[1] rule)
+                             attempt_result["status"] = "success"
+                             attempt_result["details"] = f"Possible success: Status 200, new/changed cookies, and URL changed to {response.url}."
+                        elif response.status_code == 200 and cookies_changed:
+                             attempt_result["status"] = "success" # Tentative if only cookies changed but URL is same
+                             attempt_result["details"] = f"Possible success: Status 200, new/changed cookies detected. Final URL: {response.url}."
                         elif response.status_code == 200:
-                             # Still on same page (or similar), no errors, but no strong success keywords/redirect/cookies.
-                             attempt_result["details"] = f"Status 200, but no clear success indicators (e.g. redirect, keywords, new cookies). Final URL: {response.url}. Likely a soft failure."
-                        else: # e.g. redirect to same page, or other 3xx codes without clear success
+                             attempt_result["details"] = f"Status 200, but no clear success indicators (e.g. redirect, keywords, new cookies). Final URL: {response.url}. Likely a soft failure (form re-displayed)."
+                        else: # Other 3xx redirects without strong indicators
                             attempt_result["details"] = f"Login attempt status unclear. Final URL: {response.url} (Status: {response.status_code})."
-
-                    # Log cookie changes (informational)
-                    if session.cookies.get_dict() != current_cookies:
-                        app.logger.info(f"Cookies changed during attempt for user {username_attempt} with password {password_attempt[:1]}***. Before: {current_cookies}, After: {session.cookies.get_dict()}")
 
 
                 except requests.exceptions.Timeout:
