@@ -11,13 +11,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const loginUrlInput = document.getElementById('login-url');
     const analyzeFormButton = document.querySelector('.btn-analyze');
 
-    // Username input field (new)
-    const usernameInput = document.getElementById('username-input');
-
-    // Commented out old username file upload elements
-    // const usernameListInput = document.getElementById('username-list-upload');
-    // const browseUsernameFilesButton = document.getElementById('browse-username-files-btn');
-    // const selectedUsernameFileNameDisplay = document.getElementById('selected-username-file-name');
+    // Username file input elements
+    const usernameListInput = document.getElementById('username-list-upload');
+    const browseUsernameFilesButton = document.getElementById('browse-username-files-btn');
+    const selectedUsernameFileNameDisplay = document.getElementById('selected-username-file-name');
 
     const passwordListInput = document.getElementById('password-list-upload');
     const browsePasswordFilesButton = document.getElementById('browse-files-btn');
@@ -30,15 +27,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const detectedPostUrlInput = document.getElementById('detected-post-url');
     const confirmAndProceedBtn = document.getElementById('confirm-and-proceed-btn');
 
+    var terminalBody = document.querySelector('.terminal-body'); // Main terminal body
+
     // --- File Input "Browse" Button Functionality ---
-    // Commented out old username file browse button listener
-    // if (browseUsernameFilesButton && usernameListInput) {
-    //     browseUsernameFilesButton.addEventListener('click', () => {
-    //         usernameListInput.click();
-    //     });
-    // } else {
-    //     console.error('Username browse button or file input not found.');
-    // }
+    if (browseUsernameFilesButton && usernameListInput) {
+        browseUsernameFilesButton.addEventListener('click', () => {
+            usernameListInput.click();
+        });
+    } else {
+        console.error('Username browse button or file input not found.');
+    }
 
     if (browsePasswordFilesButton && passwordListInput) {
         browsePasswordFilesButton.addEventListener('click', () => {
@@ -63,44 +61,37 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Commented out old username file input listener
-    // setupFileInputListener(usernameListInput, selectedUsernameFileNameDisplay, 'No file selected.');
+    setupFileInputListener(usernameListInput, selectedUsernameFileNameDisplay, 'No file selected.');
     setupFileInputListener(passwordListInput, selectedPasswordFileNameDisplay, 'No password file selected.');
 
     // --- "Analyze Form" Button Click Logic ---
     if (analyzeFormButton) {
-        const originalButtonText = analyzeFormButton.querySelector('.btn-text').textContent; // Get text from span
+        const originalButtonText = analyzeFormButton.querySelector('.btn-text').textContent;
 
         analyzeFormButton.addEventListener('click', async (event) => {
             event.preventDefault();
-
-            // Hide analysis results panel if already visible from a previous run
             if(formAnalysisResultsPanel) formAnalysisResultsPanel.style.display = 'none';
 
-
-            const usernameValue = usernameInput ? usernameInput.value.trim() : '';
+            // Password file and URL are key for analysis. Username file is for testing step.
             const passwordFile = passwordListInput.files.length > 0 ? passwordListInput.files[0] : null;
             const loginUrl = loginUrlInput.value.trim();
 
-            if (!usernameValue) { alert("Please enter a username or email."); return; }
+            // Password file is not strictly needed for /analyze_url, but good to have it selected by this stage.
+            // For this version, we'll keep the check.
             if (!passwordFile) { alert("Please select a password list file."); return; }
 
-            // Password file validation
             if (passwordFile.type !== 'text/plain' && passwordFile.type !== 'text/csv') {
                 alert("Invalid password file type. Please upload a .txt or .csv file.");
-                // Reset file input to allow re-selection of the same file if needed after an error
                 if(passwordListInput) passwordListInput.value = '';
                 if(selectedPasswordFileNameDisplay) selectedPasswordFileNameDisplay.textContent = 'No password file selected.';
                 return;
             }
-
-            if (passwordFile.size > 5 * 1024 * 1024) { // 5MB limit
+            if (passwordFile.size > 5 * 1024 * 1024) {
                 alert("Password file is too large. Maximum size is 5MB.");
                 if(passwordListInput) passwordListInput.value = '';
                 if(selectedPasswordFileNameDisplay) selectedPasswordFileNameDisplay.textContent = 'No password file selected.';
                 return;
             }
-
             if (!loginUrl) { alert("Please enter the login URL."); return; }
             try {
                 const url = new URL(loginUrl);
@@ -111,36 +102,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 alert("Invalid login URL format. Please enter a full URL (e.g., https://example.com/login)."); return;
             }
 
-            // Log initiation of analysis
             console.log(`Starting form analysis for URL: ${loginUrl}`);
-            // console.log("Initial validation successful."); // This can be kept if more detailed pre-analysis logs are desired
-            // console.log("Username value:", usernameValue);
-            // console.log("Password file:", passwordFile.name);
-            // console.log("Login URL:", loginUrl);
-
-            // Log initiation of analysis
-            console.log(`Starting form analysis for URL: ${loginUrl}`);
-
             analyzeFormButton.querySelector('.btn-text').textContent = 'Analyzing...';
             analyzeFormButton.disabled = true;
-            window.attackContext = {}; // Reset context
+            window.attackContext = {};
 
             try {
                 const apiResponse = await fetch(API_BASE_URL + '/analyze_url', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
+                    headers: { 'Content-Type': 'application/json', },
                     body: JSON.stringify({ url: loginUrl }),
                 });
-
                 const analysis = await apiResponse.json();
+                if (!apiResponse.ok) { throw new Error(analysis.error || `API Error: ${apiResponse.status}`); }
 
-                if (!apiResponse.ok) {
-                    throw new Error(analysis.error || `API Error: ${apiResponse.status}`);
-                }
-
-                if (analysis.error) { // Handle errors reported by the API in a structured way
+                if (analysis.error) {
                     alert(`Analysis Error: ${analysis.error}`);
                     if (detectedUsernameFieldInput) detectedUsernameFieldInput.value = '';
                     if (detectedPasswordFieldInput) detectedPasswordFieldInput.value = '';
@@ -150,29 +126,21 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (detectedUsernameFieldInput) detectedUsernameFieldInput.value = analysis.username_field_name || '';
                     if (detectedPasswordFieldInput) detectedPasswordFieldInput.value = analysis.password_field_name || '';
                     if (detectedPostUrlInput) detectedPostUrlInput.value = analysis.post_url || '';
-
-                    // Store context for the next step
                     window.attackContext.formMethod = analysis.form_method;
                     window.attackContext.csrfTokenName = analysis.csrf_token_name;
                     window.attackContext.csrfTokenValue = analysis.csrf_token_value;
                     window.attackContext.initialCookies = analysis.cookies;
-                    window.attackContext.analyzedUrl = loginUrl; // Store the URL that was analyzed
+                    window.attackContext.analyzedUrl = loginUrl;
                 }
-
             } catch (error) {
                 console.error("Error during form analysis call:", error);
                 alert(`Failed to analyze form: ${error.message}. Check console for details.`);
-                // Clear previous results if any
                 if (detectedUsernameFieldInput) detectedUsernameFieldInput.value = '';
                 if (detectedPasswordFieldInput) detectedPasswordFieldInput.value = '';
                 if (detectedPostUrlInput) detectedPostUrlInput.value = '';
             } finally {
-                // Populate and display the results panel (even if some fields are empty or show errors)
                 [detectedUsernameFieldInput, detectedPasswordFieldInput, detectedPostUrlInput].forEach(input => {
-                    if (input) {
-                        const event = new Event('input', { bubbles: true });
-                        input.dispatchEvent(event); // For floating labels
-                    }
+                    if (input) { input.dispatchEvent(new Event('input', { bubbles: true })); }
                 });
                 if (formAnalysisResultsPanel) {
                     formAnalysisResultsPanel.style.display = 'block';
@@ -186,34 +154,55 @@ document.addEventListener('DOMContentLoaded', () => {
         console.error('Analyze form button not found.');
     }
 
-    // --- Helper function to add messages to the terminal ---
-    const terminalBody = document.querySelector('.terminal-body'); // Assuming step 3 is already in DOM
     function addLogMessage(message, type = 'info') {
-        if (!terminalBody) {
-            console.error("Terminal body not found for logging. Ensure Step 3 is in the DOM.");
-            // Fallback to console if terminal is not ready (e.g. if called before step3 is shown)
-            console.log(`[${type.toUpperCase()}] ${message}`);
+        const currentTerminalBody = document.querySelector('#step3 .terminal-body');
+        if (!currentTerminalBody) { // Fallback if step 3 is not active/visible
+            console.log(`[${type.toUpperCase()}] Log (terminal not visible): ${message}`);
             return;
         }
         const p = document.createElement('p');
         const time = new Date().toLocaleTimeString();
         p.innerHTML = `<span class="status-time">[${time}]</span>`;
-
         const msgSpan = document.createElement('span');
-        msgSpan.textContent = message; // Text content for security
-
+        msgSpan.textContent = message;
         if (type === 'success') msgSpan.className = 'status-success';
         else if (type === 'fail') msgSpan.className = 'status-fail';
         else msgSpan.className = 'status-info';
-
         p.appendChild(msgSpan);
-        terminalBody.appendChild(p);
-        terminalBody.scrollTop = terminalBody.scrollHeight;
+        currentTerminalBody.appendChild(p);
+        currentTerminalBody.scrollTop = currentTerminalBody.scrollHeight;
     }
 
-    // --- Function to read passwords from a file ---
+    function readUsernamesFromFile(file) {
+        return new Promise((resolve, reject) => {
+            if (!file) {
+                reject(new Error("No username file provided to reader."));
+                return;
+            }
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const content = e.target.result;
+                const usernames = content.split('\n').map(u => u.trim()).filter(u => u);
+                if (usernames.length === 0) {
+                    reject(new Error("Username file is empty or does not contain valid usernames. Each username should be on a new line."));
+                } else {
+                    resolve(usernames);
+                }
+            };
+            reader.onerror = (e) => {
+                console.error("FileReader error for username file:", e);
+                reject(new Error("An error occurred while reading the username file."));
+            };
+            reader.readAsText(file);
+        });
+    }
+
     function readPasswordsFromFile(file) {
         return new Promise((resolve, reject) => {
+            if (!file) {
+                reject(new Error("No password file provided to reader."));
+                return;
+            }
             const reader = new FileReader();
             reader.onload = (e) => {
                 const content = e.target.result;
@@ -225,51 +214,74 @@ document.addEventListener('DOMContentLoaded', () => {
                 resolve(passwords);
             };
             reader.onerror = (e) => {
-                console.error("FileReader error:", e);
+                console.error("FileReader error for password file:", e);
                 reject(new Error("An error occurred while reading the password file."));
             };
             reader.readAsText(file);
         });
     }
 
-    // --- "Confirm and Proceed" Button Click Logic (Initiates Attack Simulation) ---
     if (confirmAndProceedBtn) {
         confirmAndProceedBtn.addEventListener('click', async (event) => {
             event.preventDefault();
             confirmAndProceedBtn.disabled = true;
             confirmAndProceedBtn.textContent = 'Processing...';
 
-            // Activate Step 3 and deactivate Step 1
             const step1Panel = document.getElementById('step1');
             const step3Panel = document.getElementById('step3');
-            if (step1Panel) step1Panel.classList.remove('active');
-            if (step3Panel) step3Panel.classList.add('active');
-            // terminalBody is queried at the start of DOMContentLoaded.
-            // It should be available once step3Panel is made active.
 
-            const usernameValue = usernameInput ? usernameInput.value.trim() : ''; // Renamed for clarity
+            const usernameFile = usernameListInput.files.length > 0 ? usernameListInput.files[0] : null;
+            const passwordFile = passwordListInput.files.length > 0 ? passwordListInput.files[0] : null;
             const targetPostUrl = detectedPostUrlInput ? detectedPostUrlInput.value.trim() : '';
             const usernameFieldName = detectedUsernameFieldInput ? detectedUsernameFieldInput.value.trim() : '';
             const passwordFieldName = detectedPasswordFieldInput ? detectedPasswordFieldInput.value.trim() : '';
-            const passwordFile = passwordListInput.files.length > 0 ? passwordListInput.files[0] : null;
 
-            // Clear previous terminal messages
-            if (terminalBody) terminalBody.innerHTML = '';
+            // Activate Step 3 and deactivate Step 1 (do this before clearing terminal)
+            if (step1Panel) step1Panel.classList.remove('active');
+            if (step3Panel) step3Panel.classList.add('active');
 
-            addLogMessage(`Initiating login attempts for user "${usernameValue}" against ${targetPostUrl}...`, 'info');
+            const currentTerminalBody = document.querySelector('#step3 .terminal-body');
+            if (currentTerminalBody) currentTerminalBody.innerHTML = ''; // Clear previous terminal messages
 
+            addLogMessage(`Initiating login attempts against ${targetPostUrl}...`, 'info');
+
+            if (!usernameFile) {
+                alert("Please select a username/email list file.");
+                addLogMessage("Error: Username/Email list file not selected. Please return to Step 1.", 'fail');
+                confirmAndProceedBtn.disabled = false;
+                confirmAndProceedBtn.textContent = 'Confirm and Proceed';
+                if (step3Panel) step3Panel.classList.remove('active');
+                if (step1Panel) step1Panel.classList.add('active');
+                return;
+            }
+            if (usernameFile.type !== 'text/plain' && usernameFile.type !== 'text/csv') {
+                alert("Invalid username file type. Please upload a .txt or .csv file.");
+                if(usernameListInput) usernameListInput.value = '';
+                if(selectedUsernameFileNameDisplay) selectedUsernameFileNameDisplay.textContent = 'No file selected.';
+                confirmAndProceedBtn.disabled = false;
+                confirmAndProceedBtn.textContent = 'Confirm and Proceed';
+                if (step3Panel) step3Panel.classList.remove('active');
+                if (step1Panel) step1Panel.classList.add('active');
+                return;
+            }
+            if (usernameFile.size > 1 * 1024 * 1024) { // 1MB limit for username list
+                alert("Username file is too large. Maximum size is 1MB.");
+                confirmAndProceedBtn.disabled = false;
+                confirmAndProceedBtn.textContent = 'Confirm and Proceed';
+                if (step3Panel) step3Panel.classList.remove('active');
+                if (step1Panel) step1Panel.classList.add('active');
+                return;
+            }
 
             if (!passwordFile) {
                 alert("Password file not selected. Please go back and select a password file.");
                 addLogMessage("Error: Password file not selected. Please return to Step 1.", 'fail');
                 confirmAndProceedBtn.disabled = false;
                 confirmAndProceedBtn.textContent = 'Confirm and Proceed';
-                // Switch back to step 1
                 if (step3Panel) step3Panel.classList.remove('active');
                 if (step1Panel) step1Panel.classList.add('active');
                 return;
             }
-
             if (!targetPostUrl ||
                 !passwordFieldName || passwordFieldName === 'Could not auto-detect' ||
                 !usernameFieldName || usernameFieldName === 'Could not auto-detect') {
@@ -282,22 +294,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            // addLogMessage(`Target URL: ${targetPostUrl}`, 'info'); // Already logged by the new message
             addLogMessage(`Username Field: ${usernameFieldName}`, 'info');
             addLogMessage(`Password Field: ${passwordFieldName}`, 'info');
-            // addLogMessage(`Username/Email: ${usernameValue}`, 'info'); // Already logged by the new message
 
             try {
-                addLogMessage(`Reading passwords from ${passwordFile.name}...`, 'info');
+                addLogMessage(`Reading username file: ${usernameFile.name}...`, 'info');
+                const usernames = await readUsernamesFromFile(usernameFile);
+                addLogMessage(`Successfully read ${usernames.length} username(s).`, 'info');
+
+                addLogMessage(`Reading password file: ${passwordFile.name}...`, 'info');
                 const passwords = await readPasswordsFromFile(passwordFile);
-                addLogMessage(`Successfully read ${passwords.length} passwords. Starting tests...`, 'info');
+                addLogMessage(`Successfully read ${passwords.length} password(s). Starting tests...`, 'info');
 
                 const attemptsCountEl = document.querySelector('#step3 .metrics-hud .hud-pod:nth-child(1) .hud-value');
                 const hitsCountEl = document.querySelector('#step3 .metrics-hud .hud-pod:nth-child(2) .hud-value');
 
                 let totalAttempts = 0;
                 let totalHits = 0;
-
                 if (attemptsCountEl) attemptsCountEl.textContent = totalAttempts;
                 if (hitsCountEl) hitsCountEl.textContent = totalHits;
 
@@ -309,44 +322,35 @@ document.addEventListener('DOMContentLoaded', () => {
                     csrf_token_name: window.attackContext.csrfTokenName,
                     csrf_token_value: window.attackContext.csrfTokenValue,
                     cookies: window.attackContext.initialCookies,
-                    username: usernameValue,
+                    username_list: usernames,
                     password_list: passwords
                 };
 
                 const apiResponse = await fetch(API_BASE_URL + '/test_credentials', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
+                    headers: { 'Content-Type': 'application/json',},
                     body: JSON.stringify(payload),
                 });
-
                 const results = await apiResponse.json();
-
-                if (!apiResponse.ok) {
-                    throw new Error(results.error || `API Error: ${apiResponse.status}`);
-                }
+                if (!apiResponse.ok) { throw new Error(results.error || `API Error: ${apiResponse.status}`); }
 
                 for (const result_item of results) {
                     totalAttempts++;
-                    let displayPassword = result_item.password; // Show full password from backend if available
-                    if (typeof displayPassword === 'string' && displayPassword.length > 2) {
-                         // Mask if still desired, though backend now returns it
-                         // displayPassword = `${displayPassword.substring(0,1)}***${displayPassword.substring(displayPassword.length-1)}`;
-                    } else if (typeof displayPassword !== 'string') {
-                        displayPassword = "N/A"; // Should not happen if backend sends string
+                    let displayPassword = result_item.password;
+                    // Mask password in client-side log for display, even if backend sends it plain for its own result object
+                    if (typeof displayPassword === 'string' && displayPassword.length > 0) {
+                         displayPassword = `${displayPassword.substring(0,1)}***${displayPassword.substring(displayPassword.length-1) || '*'}`;
+                    } else {
+                        displayPassword = "N/A";
                     }
-
-
-                    addLogMessage(`[${result_item.status.toUpperCase()}] User: ${usernameValue} / Pass: ${displayPassword} - ${result_item.details}`, result_item.status);
+                    // Use result_item.username as backend now provides it per attempt
+                    addLogMessage(`[${result_item.status.toUpperCase()}] User: ${result_item.username} / Pass: ${displayPassword} - ${result_item.details}`, result_item.status);
 
                     if (result_item.status === 'success') {
                         totalHits++;
                     }
                     if (attemptsCountEl) attemptsCountEl.textContent = totalAttempts;
                     if (hitsCountEl) hitsCountEl.textContent = totalHits;
-
-                    // Add a small delay for observable output, even though results come at once
                     await new Promise(resolve => setTimeout(resolve, 50));
                 }
                 addLogMessage("All credential tests finished.", 'info');
@@ -358,7 +362,6 @@ document.addEventListener('DOMContentLoaded', () => {
             } finally {
                 confirmAndProceedBtn.disabled = false;
                 confirmAndProceedBtn.textContent = 'Confirm and Proceed';
-                // User stays on Step 3 to see results
             }
         });
     } else {

@@ -134,7 +134,7 @@ def test_credentials():
         data = request.get_json()
         required_fields = [
             "target_post_url", "username_field_name", "password_field_name",
-            "username", "password_list", "form_method"
+            "username_list", "password_list", "form_method" # Changed "username" to "username_list"
         ]
         if not data or not all(field in data for field in required_fields):
             missing = [field for field in required_fields if field not in data]
@@ -144,9 +144,16 @@ def test_credentials():
         target_post_url = data['target_post_url']
         username_field_name = data['username_field_name']
         password_field_name = data['password_field_name']
-        username = data['username']
+        username_list = data['username_list'] # Changed from username
         password_list = data['password_list']
         form_method = data.get('form_method', 'POST').upper()
+
+        if not isinstance(username_list, list):
+            app.logger.warning(f"'username_list' is not a list in /test_credentials from {request.remote_addr}")
+            return jsonify({"error": "'username_list' must be a list."}), 400
+        if not username_list:
+            app.logger.warning(f"'username_list' is empty in /test_credentials from {request.remote_addr}")
+            return jsonify({"error": "'username_list' cannot be empty."}), 400
 
         csrf_token_name = data.get('csrf_token_name')
         csrf_token_value = data.get('csrf_token_value')
@@ -167,18 +174,21 @@ def test_credentials():
             if headers['Origin'] is None:
                 del headers['Origin']
 
-            for password_attempt in password_list:
-                payload = {
-                    username_field_name: username,
-                    password_field_name: password_attempt,
-                }
-                if csrf_token_name and csrf_token_value:
-                    payload[csrf_token_name] = csrf_token_value
+            for username_attempt in username_list:
+                app.logger.info(f"Starting attempts for username: {username_attempt} against {target_post_url}")
+                for password_attempt in password_list:
+                    payload = {
+                        username_field_name: username_attempt, # Use username_attempt
+                        password_field_name: password_attempt,
+                    }
+                    if csrf_token_name and csrf_token_value:
+                        payload[csrf_token_name] = csrf_token_value
 
-                attempt_result = {
-                    "password": password_attempt,
-                    "status": "unknown",
-                    "response_url": None,
+                    attempt_result = {
+                        "username": username_attempt, # Add username to result
+                        "password": password_attempt,
+                        "status": "unknown",
+                        "response_url": None,
                     "status_code": None,
                     "details": ""
                 }
@@ -266,21 +276,21 @@ def test_credentials():
 
                     # Log cookie changes (informational)
                     if session.cookies.get_dict() != current_cookies:
-                        app.logger.info(f"Cookies changed during attempt for user {username} with password {password_attempt[:1]}***. Before: {current_cookies}, After: {session.cookies.get_dict()}")
+                        app.logger.info(f"Cookies changed during attempt for user {username_attempt} with password {password_attempt[:1]}***. Before: {current_cookies}, After: {session.cookies.get_dict()}")
 
 
                 except requests.exceptions.Timeout:
                     attempt_result["status"] = "error"
                     attempt_result["details"] = "Request timed out during login attempt."
-                    app.logger.warning(f"Timeout during login attempt for user {username} to {target_post_url} with password {password_attempt[:1]}***")
+                    app.logger.warning(f"Timeout during login attempt for user {username_attempt} to {target_post_url} with password {password_attempt[:1]}***")
                 except requests.exceptions.RequestException as e:
                     attempt_result["status"] = "error"
                     attempt_result["details"] = f"Request error during login attempt: {str(e)}"
-                    app.logger.error(f"RequestException during login attempt for user {username} to {target_post_url} with password {password_attempt[:1]}***: {str(e)}", exc_info=True)
+                    app.logger.error(f"RequestException during login attempt for user {username_attempt} to {target_post_url} with password {password_attempt[:1]}***: {str(e)}", exc_info=True)
 
                 results.append(attempt_result)
 
-        app.logger.info(f"Finished /test_credentials for user {username} against {target_post_url}. Passwords attempted: {len(password_list)}")
+        app.logger.info(f"Completed all credential tests. Total results: {len(results)}")
         return jsonify(results), 200
 
     except Exception as e:
