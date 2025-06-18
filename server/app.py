@@ -151,9 +151,16 @@ def test_credentials():
         if not isinstance(username_list, list):
             app.logger.warning(f"'username_list' is not a list in /test_credentials from {request.remote_addr}")
             return jsonify({"error": "'username_list' must be a list."}), 400
-        if not username_list:
+        if not username_list: # This check implies username_list must have at least one item
             app.logger.warning(f"'username_list' is empty in /test_credentials from {request.remote_addr}")
             return jsonify({"error": "'username_list' cannot be empty."}), 400
+
+        if not isinstance(password_list, list): # Should be guaranteed by frontend, but good practice
+            app.logger.warning(f"'password_list' is not a list in /test_credentials from {request.remote_addr}")
+            return jsonify({"error": "'password_list' must be a list."}), 400
+        if not password_list:
+            app.logger.warning(f"Received request with empty password_list from {request.remote_addr}.")
+            return jsonify({"error": "'password_list' cannot be empty."}), 400
 
         csrf_token_name = data.get('csrf_token_name')
         csrf_token_value = data.get('csrf_token_value')
@@ -174,21 +181,31 @@ def test_credentials():
             if headers['Origin'] is None:
                 del headers['Origin']
 
-            for username_attempt in username_list:
-                app.logger.info(f"Starting attempts for username: {username_attempt} against {target_post_url}")
-                for password_attempt in password_list:
-                    payload = {
-                        username_field_name: username_attempt, # Use username_attempt
-                        password_field_name: password_attempt,
-                    }
-                    if csrf_token_name and csrf_token_value:
-                        payload[csrf_token_name] = csrf_token_value
+            num_attempts = min(len(username_list), len(password_list))
+            app.logger.info(f"Starting paired credential testing. Number of pairs to test: {num_attempts}")
 
-                    attempt_result = {
-                        "username": username_attempt, # Add username to result
-                        "password": password_attempt,
-                        "status": "unknown",
-                        "response_url": None,
+            if num_attempts == 0:
+                # This case is now less likely due to earlier checks, but good safeguard
+                return jsonify([]), 200
+
+            for i in range(num_attempts):
+                username_attempt = username_list[i]
+                password_attempt = password_list[i]
+
+                app.logger.info(f"Attempting pair {i+1}/{num_attempts}: User '{username_attempt}' with Password '********'")
+
+                payload = {
+                    username_field_name: username_attempt,
+                    password_field_name: password_attempt,
+                }
+                if csrf_token_name and csrf_token_value:
+                    payload[csrf_token_name] = csrf_token_value
+
+                attempt_result = {
+                    "username": username_attempt,
+                    "password": password_attempt,
+                    "status": "unknown",
+                    "response_url": None,
                     "status_code": None,
                     "details": ""
                 }
@@ -290,7 +307,7 @@ def test_credentials():
 
                 results.append(attempt_result)
 
-        app.logger.info(f"Completed all credential tests. Total results: {len(results)}")
+        app.logger.info(f"Completed paired credential testing. Total pairs tested: {len(results)}")
         return jsonify(results), 200
 
     except Exception as e:
