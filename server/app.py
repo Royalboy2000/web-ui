@@ -252,6 +252,7 @@ def test_credentials():
                         "status": "unknown",
                         "response_url": None,
                         "status_code": None,
+                        "content_length": None, # Initialize content_length
                         "details": ""
                     }
 
@@ -271,7 +272,19 @@ def test_credentials():
                         attempt_result["status_code"] = response.status_code
                         attempt_result["response_url"] = response.url
 
-                        response_text_lower = response.text.lower()
+                        response_text_for_length = ""
+                        try:
+                            response_text_for_length = response.text
+                            attempt_result["content_length"] = len(response_text_for_length)
+                        except Exception as e_text:
+                            app.logger.warning(f"Could not get len(response.text) for user {username_attempt}: {e_text}")
+                            header_cl = response.headers.get('Content-Length')
+                            if header_cl and header_cl.isdigit():
+                                attempt_result["content_length"] = int(header_cl)
+                            else:
+                                attempt_result["content_length"] = -1 # Indicate unavailable
+
+                        response_text_lower = response_text_for_length.lower() # Use the already fetched text
                         attempt_result["status"] = "failure"
 
                         found_error_message_text = None

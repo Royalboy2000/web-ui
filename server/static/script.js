@@ -25,9 +25,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const detectedPostUrlInput = document.getElementById('detected-post-url');
     const confirmAndProceedBtn = document.getElementById('confirm-and-proceed-btn');
 
-    let terminalBody = document.querySelector('#step1 .terminal-body'); // Initial assignment, might be updated
     const step1Panel = document.getElementById('step1');
     const step3Panel = document.getElementById('step3');
+
+    // Terminal and filter elements (ensure these IDs exist in your HTML)
+    let terminalBody = document.querySelector('#step3 .terminal-body'); // Query once step3 is active
+    const filterAll = document.getElementById('filter-all');
+    const filterHits = document.getElementById('filter-hits');
+    const filterFails = document.getElementById('filter-fails');
+    const filterContentLength = document.getElementById('filter-content-length');
+    const terminalFilterElements = [filterAll, filterHits, filterFails, filterContentLength];
 
 
     // --- File Input "Browse" Button Functionality ---
@@ -87,7 +94,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             if (!loginUrl) { alert("Please enter the login URL."); return; }
             try {
-                new URL(loginUrl); // Basic format check
+                new URL(loginUrl);
                 if (!loginUrl.startsWith('http://') && !loginUrl.startsWith('https://')) {
                      alert('Invalid login URL. Must start with http:// or https://'); return;
                 }
@@ -124,7 +131,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     window.attackContext.csrfTokenValue = analysis.csrf_token_value;
                     window.attackContext.initialCookies = analysis.cookies;
                     window.attackContext.analyzedUrl = loginUrl;
-                     // Add a small success message for analysis completion
                     console.log("Form analysis complete. Detected parameters populated.");
                 }
             } catch (error) {
@@ -150,24 +156,36 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- Helper function to add messages to the terminal ---
-    function addLogMessage(message, type = 'info') {
-        const currentTerminalBody = document.querySelector('#step3.active .terminal-body'); // Ensure we target terminal in active step 3
+    function addLogMessage(message, type = 'info', dataAttributes = {}) {
+        const currentTerminalBody = document.querySelector('#step3.active .terminal-body');
         if (!currentTerminalBody) {
-            // If step 3 is not active, we might not want to log to its terminal yet,
-            // or we might have a different logging area for early messages.
-            // For now, if step3 isn't active, log to console as a fallback.
-            console.log(`[${type.toUpperCase()}] Log (Step 3 terminal not active): ${message}`);
+            console.log(`[${type.toUpperCase()}] Log (Step 3 terminal not active/found): ${message}`);
             return;
         }
         const p = document.createElement('p');
         const time = new Date().toLocaleTimeString();
-        p.innerHTML = `<span class="status-time">[${time}]</span>`;
+
+        const timeSpan = document.createElement('span');
+        timeSpan.className = 'status-time';
+        timeSpan.textContent = `[${time}] `; // Added space for separation
+        p.appendChild(timeSpan);
+
         const msgSpan = document.createElement('span');
         msgSpan.textContent = message;
+
         if (type === 'success') msgSpan.className = 'status-success';
-        else if (type === 'fail') msgSpan.className = 'status-fail';
-        else msgSpan.className = 'status-info'; // Default or for 'info'
+        else if (type === 'fail' || type === 'error') msgSpan.className = 'status-fail'; // Consolidate fail and error styles
+        else msgSpan.className = 'status-info';
+
         p.appendChild(msgSpan);
+
+        // Set data attributes
+        for (const key in dataAttributes) {
+            if (dataAttributes.hasOwnProperty(key) && dataAttributes[key] !== undefined && dataAttributes[key] !== null) {
+                p.dataset[key] = dataAttributes[key];
+            }
+        }
+
         currentTerminalBody.appendChild(p);
         currentTerminalBody.scrollTop = currentTerminalBody.scrollHeight;
     }
@@ -220,6 +238,45 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // --- Terminal Filter Logic ---
+    terminalFilterElements.forEach(filterElement => {
+        if (filterElement) {
+            filterElement.addEventListener('click', (event) => {
+                terminalFilterElements.forEach(el => el && el.classList.remove('active'));
+                event.currentTarget.classList.add('active');
+                const activeFilterId = event.currentTarget.id;
+
+                const currentTerminalBody = document.querySelector('#step3.active .terminal-body');
+                if (!currentTerminalBody) return;
+                const logEntries = currentTerminalBody.querySelectorAll('p');
+
+                logEntries.forEach(entry => {
+                    let showEntry = false;
+                    const status = entry.dataset.status;
+                    // const contentLength = entry.dataset.contentLength; // For future use by content length filter
+
+                    switch (activeFilterId) {
+                        case 'filter-all':
+                            showEntry = true;
+                            break;
+                        case 'filter-hits':
+                            if (status === 'success') showEntry = true;
+                            break;
+                        case 'filter-fails':
+                            if (status === 'failure' || status === 'error') showEntry = true;
+                            break;
+                        case 'filter-content-length':
+                            // For now, behaves like 'ALL' as specific CL filtering not implemented
+                            // This filter primarily ensures CL is visible in the log message itself
+                            showEntry = true;
+                            break;
+                    }
+                    entry.style.display = showEntry ? '' : 'none';
+                });
+            });
+        }
+    });
+
     // --- "Confirm and Proceed" Button Click Logic (Initiates Attack Simulation) ---
     if (confirmAndProceedBtn) {
         const originalConfirmBtnText = confirmAndProceedBtn.textContent;
@@ -239,9 +296,12 @@ document.addEventListener('DOMContentLoaded', () => {
             if (step1Panel) step1Panel.classList.remove('active');
             if (step3Panel) step3Panel.classList.add('active');
 
+            // Ensure terminalBody is the one in the active step 3
             const currentTerminalBody = document.querySelector('#step3.active .terminal-body');
-            if (currentTerminalBody) currentTerminalBody.innerHTML = '';
-            else { // Fallback if querySelector fails for some reason
+            if (currentTerminalBody) {
+                currentTerminalBody.innerHTML = ''; // Clear previous terminal messages
+                terminalBody = currentTerminalBody; // Update the global-like terminalBody reference
+            } else {
                 console.error("Could not find active terminal body in Step 3 for clearing.");
             }
 
@@ -300,6 +360,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
             let usernames = [];
             let passwords = [];
+            const attemptsCountEl = document.querySelector('#step3.active .metrics-hud .hud-pod:nth-child(1) .hud-value');
+            const hitsCountEl = document.querySelector('#step3.active .metrics-hud .hud-pod:nth-child(2) .hud-value');
+            let totalAttempts = 0;
+            let totalHits = 0;
+
+            if (attemptsCountEl) attemptsCountEl.textContent = totalAttempts;
+            if (hitsCountEl) hitsCountEl.textContent = totalHits;
 
             try {
                 addLogMessage(`Reading username file: ${usernameFile.name}...`, 'info');
@@ -309,14 +376,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 addLogMessage(`Reading password file: ${passwordFile.name}...`, 'info');
                 passwords = await readPasswordsFromFile(passwordFile);
                 addLogMessage(`Successfully read ${passwords.length} password(s). Starting tests...`, 'info');
-
-                const attemptsCountEl = document.querySelector('#step3 .metrics-hud .hud-pod:nth-child(1) .hud-value');
-                const hitsCountEl = document.querySelector('#step3 .metrics-hud .hud-pod:nth-child(2) .hud-value');
-
-                let totalAttempts = 0;
-                let totalHits = 0;
-                if (attemptsCountEl) attemptsCountEl.textContent = totalAttempts;
-                if (hitsCountEl) hitsCountEl.textContent = totalHits;
 
                 const payload = {
                     target_post_url: targetPostUrl,
@@ -354,8 +413,15 @@ document.addEventListener('DOMContentLoaded', () => {
                         const { done, value } = await reader.read();
                         if (done) {
                             console.log("Stream finished.");
-                            if (buffer.trim()) { // Process any remaining data in buffer
-                                processBuffer(); // Final process call
+                            if (buffer.trim()) {
+                                processBuffer();
+                            }
+                            // Check if the last message was not a completion event, then add one.
+                            // This is a fallback if the server stream ends before sending 'complete'.
+                            const terminalMessages = currentTerminalBody ? currentTerminalBody.querySelectorAll('p') : [];
+                            const lastMessage = terminalMessages.length > 0 ? terminalMessages[terminalMessages.length-1].textContent : "";
+                            if (!lastMessage.includes("All attempts finished")) {
+                                addLogMessage("Stream ended. All available results processed.", "info");
                             }
                             break;
                         }
@@ -375,43 +441,42 @@ document.addEventListener('DOMContentLoaded', () => {
                                 if (result_item.status === 'complete') {
                                     addLogMessage(result_item.message || "All attempts finished (server signal).", "info");
                                 } else {
-                                    totalAttempts++; // Increment here as each data event is an attempt result
+                                    totalAttempts++;
                                     if (result_item.status === 'success') {
                                         totalHits++;
                                     }
                                     if (attemptsCountEl) attemptsCountEl.textContent = totalAttempts;
                                     if (hitsCountEl) hitsCountEl.textContent = totalHits;
 
-                                    const displayPassword = result_item.password ? result_item.password.replace(/./g, '*') : 'N/A';
-                                    addLogMessage(
-                                        `[${result_item.status.toUpperCase()}] User: ${result_item.username} / Pass: ${displayPassword} - ${result_item.details}`,
-                                        result_item.status
-                                    );
+                                    const displayPassword = (result_item.password_actual || result_item.password || "").replace(/./g, '*');
+                                    const clText = result_item.content_length !== undefined && result_item.content_length !== null ? result_item.content_length : 'N/A';
+                                    const logDetail = `[${result_item.status.toUpperCase()}] User: ${result_item.username} / Pass: ${displayPassword} (CL: ${clText}) - ${result_item.details}`;
+
+                                    addLogMessage(logDetail, result_item.status, {
+                                        status: result_item.status,
+                                        contentLength: result_item.content_length
+                                    });
                                 }
                             } catch (e) {
                                 console.error("Error parsing streamed JSON:", e, jsonDataString);
-                                addLogMessage(`Error parsing streamed data: ${jsonDataString}`, 'error');
+                                addLogMessage(`Error parsing streamed data: ${jsonDataString}`, 'error', {status: 'error'});
                             }
                         }
                     }
-                    buffer = sseMessages[sseMessages.length - 1]; // Keep incomplete message part
+                    buffer = sseMessages[sseMessages.length - 1];
                 }
 
                 await processStream();
-                // The 'complete' event from server should be the final log.
-                // addLogMessage("All credential tests finished.", 'info'); // This might be redundant if server sends 'complete'
 
-            } catch (error) { // Catches errors from file reading or initial fetch to /test_credentials
+            } catch (error) {
                 console.error("Error during credential testing setup or API call:", error);
-                addLogMessage(`Error: ${error.message}`, 'fail');
+                addLogMessage(`Error: ${error.message}`, 'fail', {status: 'error'}); // Ensure error logs also get a status
                 alert(`An error occurred: ${error.message}`);
-                 // Switch back to step 1 on major setup error
                 if (step3Panel) step3Panel.classList.remove('active');
                 if (step1Panel) step1Panel.classList.add('active');
             } finally {
                 confirmAndProceedBtn.disabled = false;
                 confirmAndProceedBtn.textContent = originalConfirmBtnText;
-                // User stays on Step 3 to see results unless a setup error forced them back
             }
         });
     } else {
