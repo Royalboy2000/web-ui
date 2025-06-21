@@ -25,16 +25,78 @@
 
         <main class="content-area">
 
-            <div class="wizard-step active" id="step1">
+            <!-- Step 1: Target URL Input -->
+            <div id="uiStep-TargetURL" class="wizard-step active">
                 <div class="panel-container">
                     <div class="glass-panel form-panel">
-                        <h1 class="panel-title">New Attack Vector</h1>
-                        <p class="panel-subtitle">Define Target and Credentials</p>
+                        <h1 class="panel-title">Step 1: Target URL</h1>
+                        <p class="panel-subtitle">Enter the login page URL to analyze.</p>
+
+                        <div class="form-group">
+                             <input type="url" id="login-url" class="form-input" placeholder=" " required>
+                             <label for="login-url" class="form-label">Login URL</label>
+                        </div>
+
+                        <button id="analyzeFormButton" class="btn btn-primary btn-analyze"> <!-- Used class_alias in prompt, but id is better for JS and class for styling -->
+                            <span class="btn-text">Analyze Form</span>
+                            <span class="spinner" style="display: none;"></span>
+                        </button>
+                    </div>
+                    <div class="visualizer-panel">
+                        <div class="screenshot-thumbnail">
+                            <i class="fa-solid fa-camera"></i>
+                            <p>Enter a URL to preview the target page</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 2: Analysis Review & Confirmation -->
+            <div id="uiStep-AnalysisReview" class="wizard-step" style="display:none;">
+                <div class="panel-container">
+                    <div class="glass-panel form-panel">
+                        <h1 class="panel-title">Step 2: Review Parameters</h1>
+                        <p class="panel-subtitle">Confirm or edit the detected form parameters.</p>
+
+                        <div id="form-analysis-results" class="form-analysis-results-panel" style="/* display: block; ensure it's visible when parent is */ padding-top: 0; border-top: none; margin-top:0;">
+                            <h3 class="panel-subtitle" style="margin-bottom: 1.5rem; font-size: 18px; color: var(--primary-magenta);">Detected Form Parameters</h3>
+                            <div class="form-group">
+                                <input type="text" id="detected-username-field" class="form-input" placeholder=" ">
+                                <label for="detected-username-field" class="form-label">Username Field Name</label>
+                            </div>
+                            <div class="form-group">
+                                <input type="text" id="detected-password-field" class="form-input" placeholder=" ">
+                                <label for="detected-password-field" class="form-label">Password Field Name</label>
+                            </div>
+                            <div class="form-group">
+                                <input type="text" id="detected-post-url" class="form-input" placeholder=" ">
+                                <label for="detected-post-url" class="form-label">Form POST URL</label>
+                            </div>
+                            <!-- CSRF fields could be added here if manual input is desired -->
+                        </div>
+
+                        <button id="proceedToCredentialsBtn" class="btn btn-primary" style="margin-top: 1rem; width: 100%;">Proceed to Credentials</button>
+                    </div>
+                     <div class="visualizer-panel">
+                        <div class="screenshot-thumbnail">
+                            <i class="fa-solid fa-camera"></i>
+                            <p>URL Analyzed. Review parameters.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 3: Credentials Input & Launch -->
+            <div id="uiStep-CredentialsInput" class="wizard-step" style="display:none;">
+                <div class="panel-container">
+                    <div class="glass-panel form-panel">
+                        <h1 class="panel-title">Step 3: Provide Credentials</h1>
+                        <p class="panel-subtitle">Upload username and password lists.</p>
 
                         <div class="form-group">
                             <label class="micro-label">Username/Email List File</label>
                             <div class="drop-zone">
-                                <i class="fa-solid fa-users"></i> <!-- Icon for usernames -->
+                                <i class="fa-solid fa-users"></i>
                                 <p>Drag & Drop .txt or .csv username/email list</p>
                                 <input type="file" id="username-list-upload" accept=".txt,.csv" style="display: none;">
                                 <button type="button" id="browse-username-files-btn" class="btn btn-secondary">Browse Username Files</button>
@@ -49,49 +111,26 @@
                                  <p>Drag & Drop .txt or .csv file</p>
                                  <input type="file" id="password-list-upload" accept=".txt,.csv" style="display: none;">
                                  <button type="button" id="browse-files-btn" class="btn btn-secondary">Browse Password Files</button>
-                                 <p id="selected-password-file-name">No password file selected.</p>
+                                 <p id="selected-password-file-name" class="selected-file-display">No password file selected.</p>
                              </div>
                         </div>
 
-                        <div class="form-group">
-                             <input type="url" id="login-url" class="form-input" placeholder=" " required>
-                             <label for="login-url" class="form-label">Login URL</label>
-                        </div>
-
-                        <button class="btn btn-primary btn-analyze">
-                            <span class="btn-text">Analyze Form</span>
-                            <span class="spinner"></span>
+                        <button id="launchAttackBtn" class="btn btn-primary" style="width: 100%; margin-top: 1rem; background: linear-gradient(45deg, var(--primary-magenta), var(--success-lime));">
+                            Launch Attack
                         </button>
-
-                        <div id="form-analysis-results" class="form-analysis-results-panel" style="display: none; margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--border-color);">
-                            <h3 class="panel-subtitle" style="margin-bottom: 1.5rem; font-size: 18px; color: var(--primary-magenta);">Detected Form Parameters</h3>
-                            <div class="form-group">
-                                <input type="text" id="detected-username-field" class="form-input" placeholder=" ">
-                                <label for="detected-username-field" class="form-label">Username Field Name</label>
-                            </div>
-                            <div class="form-group">
-                                <input type="text" id="detected-password-field" class="form-input" placeholder=" ">
-                                <label for="detected-password-field" class="form-label">Password Field Name</label>
-                            </div>
-                            <div class="form-group">
-                                <input type="text" id="detected-post-url" class="form-input" placeholder=" ">
-                                <label for="detected-post-url" class="form-label">Form POST URL</label>
-                            </div>
-                            <button id="confirm-and-proceed-btn" class="btn btn-primary" style="width: 100%; margin-top: 1rem; background: linear-gradient(45deg, var(--primary-magenta), var(--success-lime));">Confirm and Proceed</button>
-                        </div>
                     </div>
-
                     <div class="visualizer-panel">
                         <div class="screenshot-thumbnail">
-                            <i class="fa-solid fa-camera"></i>
-                            <p>Enter a URL to preview the target page</p>
+                            <i class="fa-solid fa-file-upload"></i>
+                            <p>Ready for credential files.</p>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <div class="wizard-step" id="step2">
-                 <h1 class="panel-title">Options & Payload</h1>
+            <!-- Step 2 from original design - Options & Payload (Currently Hidden / Bypassed) -->
+            <div class="wizard-step" id="step2-options" style="display:none;"> <!-- Renamed id to avoid conflict if old step2 JS exists -->
+                 <h1 class="panel-title">Options & Payload (Advanced)</h1>
                  <div class="options-grid">
                      <div class="glass-panel">
                          <label class="micro-label">Concurrency</label>
@@ -119,10 +158,12 @@
                  </div>
             </div>
 
-            <div class="wizard-step" id="step3">
+            <!-- Step 4: Monitor Attack (was #step3) -->
+            <div class="wizard-step" id="uiStep-Monitor">
                  <div class="monitor-header">
-                     <h1 class="panel-title">Launch & Monitor</h1>
+                     <h1 class="panel-title">Step 4: Monitor Attack</h1>
                      <div class="launch-controls">
+                        <!-- Original LAUNCH button, functionality might be reassigned or removed if not used -->
                         <button class="btn-launch-cube">▶ LAUNCH</button>
                      </div>
                  </div>
@@ -135,33 +176,30 @@
                                  <span id="filter-hits">HITS</span>
                                  <span id="filter-fails">FAILS</span>
                                  <span id="filter-content-length">CONTENT LENGTH</span>
-                                 <span id="filter-response">RESPONSE</span> <!-- New filter -->
+                                 <span id="filter-response">RESPONSE</span>
                              </div>
                          </div>
                          <div class="terminal-body">
-                             <p><span class="status-time">[18:24:24]</span><span class="status-info">Connecting to target...</span></p>
-                             <p><span class="status-time">[18:24:25]</span><span class="status-fail">FAIL</span> :: user: admin, pass: 123456</p>
-                             <p><span class="status-time">[18:24:26]</span><span class="status-fail">FAIL</span> :: user: admin, pass: password</p>
-                             <p><span class="status-time">[18:24:27]</span><span class="status-success">HIT</span> :: user: admin, pass: P@ssw0rd!_2025</p>
-                             <p><span class="status-time">[18:24:28]</span><span class="status-info">Pausing attack...</span></p>
+                             <!-- Log messages will be dynamically inserted here by script.js -->
+                             <p><span class="status-time">[INFO]</span><span class="status-info"> Awaiting attack initiation...</span></p>
                          </div>
                      </div>
                      <div class="metrics-hud">
                          <div class="hud-pod">
                              <label class="micro-label">TOTAL ATTEMPTS</label>
-                             <span class="hud-value">1,337</span>
+                             <span id="hud-total-attempts" class="hud-value">0</span>
                          </div>
                          <div class="hud-pod">
                             <label class="micro-label">HITS</label>
-                            <span class="hud-value success-text">1</span>
+                            <span id="hud-hits" class="hud-value success-text">0</span>
                          </div>
                          <div class="hud-pod">
                             <label class="micro-label">ELAPSED TIME</label>
-                            <span class="hud-value">00:00:04</span>
+                            <span id="hud-elapsed-time" class="hud-value">00:00:00</span>
                          </div>
                          <div class="hud-pod">
                             <label class="micro-label">ETA</label>
-                            <span class="hud-value">~12:45:10</span>
+                            <span id="hud-eta" class="hud-value">--:--:--</span>
                          </div>
                      </div>
                  </div>
