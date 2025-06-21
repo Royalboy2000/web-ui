@@ -474,3 +474,88 @@ body {
     .global-nav { position: static; }
     .options-grid { grid-template-columns: 1fr; }
 }
+
+/* --- Modal Styles for Request/Response Details --- */
+.modal {
+    /* display: none; // Initially hidden by inline style in HTML, JS controls visibility */
+    position: fixed; /* Stay in place */
+    z-index: 1000; /* Sit on top */
+    left: 0;
+    top: 0;
+    width: 100%; /* Full width */
+    height: 100%; /* Full height */
+    overflow: auto; /* Enable scroll if needed (for the modal itself, if content overflows viewport) */
+    background-color: rgba(0,0,0,0.6); /* Black w/ opacity for backdrop */
+    padding-top: 60px; /* Location of the box */
+}
+
+.modal-content {
+    background-color: var(--bg-color, #0A0A0F); /* Use existing bg-color variable or a dark default */
+    color: var(--text-color, #E0E0E0); /* Use existing text-color or a light default */
+    margin: 5% auto; /* 5% from the top and centered */
+    padding: 25px;
+    border: 1px solid var(--border-color, rgba(255, 255, 255, 0.2));
+    border-radius: 12px;
+    width: 80%; /* Could be more or less, depending on screen size */
+    max-width: 900px; /* Max width */
+    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+    position: relative;
+}
+
+.modal-close-btn {
+    color: var(--primary-magenta, #FF00FF); /* Use a theme color */
+    float: right;
+    font-size: 32px;
+    font-weight: bold;
+    line-height: 1;
+}
+
+.modal-close-btn:hover,
+.modal-close-btn:focus {
+    color: var(--primary-cyan, #00FFFF); /* Hover color */
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.modal-title {
+    font-family: var(--font-heading, 'Orbitron', sans-serif);
+    font-size: 24px;
+    color: var(--primary-cyan, #00FFFF);
+    margin-top: 0;
+    margin-bottom: 20px;
+    text-shadow: var(--glow-cyan, 0 0 5px var(--primary-cyan));
+}
+
+.modal-section {
+    margin-bottom: 20px;
+}
+
+.modal-subtitle {
+    font-family: var(--font-subheading, 'Audiowide', sans-serif);
+    font-size: 18px;
+    color: var(--primary-magenta, #FF00FF);
+    margin-top: 0;
+    margin-bottom: 10px;
+    border-bottom: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+    padding-bottom: 5px;
+}
+
+.modal-code-block {
+    background-color: rgba(0,0,0,0.3); /* Slightly different bg for code blocks */
+    border: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+    border-radius: 6px;
+    padding: 15px;
+    font-family: var(--font-mono, 'Source Code Pro', monospace);
+    font-size: 14px;
+    white-space: pre-wrap;       /* CSS3 */
+    word-wrap: break-word;     /* Internet Explorer 5.5+ */
+    max-height: 300px; /* Make code blocks scrollable if content is too long */
+    overflow-y: auto;
+}
+
+/* Clear floats for modal header if needed, though simple float right on close btn is usually fine */
+.modal-content::after {
+    content: "";
+    clear: both;
+    display: table;
+}

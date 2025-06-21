@@ -3,6 +3,7 @@
 
 const API_BASE_URL = 'http://127.0.0.1:5001';
 window.attackContext = {}; // Used to store data between analysis and testing steps
+let attemptDetailsStore = {}; // To store request/response for modal
 
 document.addEventListener('DOMContentLoaded', () => {
     console.log('Predator script loaded and DOM fully parsed.');
@@ -28,14 +29,20 @@ document.addEventListener('DOMContentLoaded', () => {
     const step1Panel = document.getElementById('step1');
     const step3Panel = document.getElementById('step3');
 
-    // Terminal and filter elements (ensure these IDs exist in your HTML)
-    let terminalBody = document.querySelector('#step3 .terminal-body'); // Query once step3 is active
+    // Terminal and filter elements
+    let terminalBody = document.querySelector('#step3 .terminal-body');
     const filterAll = document.getElementById('filter-all');
     const filterHits = document.getElementById('filter-hits');
     const filterFails = document.getElementById('filter-fails');
     const filterContentLength = document.getElementById('filter-content-length');
-    const terminalFilterElements = [filterAll, filterHits, filterFails, filterContentLength];
+    const filterResponse = document.getElementById('filter-response'); // Added Response Filter
+    const terminalFilterElements = [filterAll, filterHits, filterFails, filterContentLength, filterResponse];
 
+    // Modal DOM References
+    const responseModal = document.getElementById('responseModal');
+    const modalCloseBtn = document.getElementById('modalCloseBtn');
+    const modalRequestDetails = document.getElementById('modalRequestDetails');
+    const modalResponseBody = document.getElementById('modalResponseBody');
 
     // --- File Input "Browse" Button Functionality ---
     if (browseUsernameFilesButton && usernameListInput) {
@@ -160,26 +167,29 @@ document.addEventListener('DOMContentLoaded', () => {
         const currentTerminalBody = document.querySelector('#step3.active .terminal-body');
         if (!currentTerminalBody) {
             console.log(`[${type.toUpperCase()}] Log (Step 3 terminal not active/found): ${message}`);
-            return;
+            return; // Return null or a placeholder if needed, but for now, just log and exit
         }
         const p = document.createElement('p');
         const time = new Date().toLocaleTimeString();
 
         const timeSpan = document.createElement('span');
         timeSpan.className = 'status-time';
-        timeSpan.textContent = `[${time}] `; // Added space for separation
+        timeSpan.textContent = `[${time}] `;
         p.appendChild(timeSpan);
 
         const msgSpan = document.createElement('span');
         msgSpan.textContent = message;
 
         if (type === 'success') msgSpan.className = 'status-success';
-        else if (type === 'fail' || type === 'error') msgSpan.className = 'status-fail'; // Consolidate fail and error styles
+        else if (type === 'fail' || type === 'error') msgSpan.className = 'status-fail';
         else msgSpan.className = 'status-info';
 
         p.appendChild(msgSpan);
 
-        // Set data attributes
+        // Set data attributes, including id if provided
+        if (dataAttributes.id) {
+            p.id = dataAttributes.id;
+        }
         for (const key in dataAttributes) {
             if (dataAttributes.hasOwnProperty(key) && dataAttributes[key] !== undefined && dataAttributes[key] !== null) {
                 p.dataset[key] = dataAttributes[key];
@@ -188,6 +198,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         currentTerminalBody.appendChild(p);
         currentTerminalBody.scrollTop = currentTerminalBody.scrollHeight;
+        // return p; // Return the p element if needed by caller
     }
 
     function readUsernamesFromFile(file) {
@@ -253,10 +264,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 logEntries.forEach(entry => {
                     let showEntry = false;
                     const status = entry.dataset.status;
-                    // const contentLength = entry.dataset.contentLength; // For future use by content length filter
+                    // const contentLength = entry.dataset.contentLength;
 
                     switch (activeFilterId) {
                         case 'filter-all':
+                        case 'filter-content-length': // Behaves like ALL for now
+                        case 'filter-response': // Also behaves like ALL for now, click on entry shows modal
                             showEntry = true;
                             break;
                         case 'filter-hits':
@@ -265,17 +278,50 @@ document.addEventListener('DOMContentLoaded', () => {
                         case 'filter-fails':
                             if (status === 'failure' || status === 'error') showEntry = true;
                             break;
-                        case 'filter-content-length':
-                            // For now, behaves like 'ALL' as specific CL filtering not implemented
-                            // This filter primarily ensures CL is visible in the log message itself
-                            showEntry = true;
-                            break;
                     }
                     entry.style.display = showEntry ? '' : 'none';
                 });
             });
         }
     });
+
+    // --- Modal Click Logic ---
+    if (terminalBody && responseModal && modalRequestDetails && modalResponseBody && modalCloseBtn) {
+        // Event delegation on terminalBody for clicking log entries
+        terminalBody.addEventListener('click', (event) => {
+            const clickedP = event.target.closest('p[data-log-id]');
+            if (clickedP) {
+                const logId = clickedP.dataset.logId;
+                if (attemptDetailsStore[logId]) {
+                    const details = attemptDetailsStore[logId];
+                    modalRequestDetails.textContent = JSON.stringify(details.request_details, null, 2);
+                    modalResponseBody.textContent = details.response_body || "No response body captured or applicable.";
+                    responseModal.style.display = 'block';
+                } else {
+                    // This might happen if the log entry is for a message not from an attempt (e.g. "Initiating...")
+                    // Or if the logId is not correctly set/retrieved.
+                    console.warn(`No details found in store for logId: ${logId}. Entry:`, clickedP.textContent);
+                     // Fallback: show generic message or just don't open modal for non-detailed logs
+                    modalRequestDetails.textContent = "No request details available for this log entry.";
+                    modalResponseBody.textContent = "No response body available for this log entry.";
+                    responseModal.style.display = 'block'; // Still show modal but with info
+                }
+            }
+        });
+
+        modalCloseBtn.addEventListener('click', () => {
+            responseModal.style.display = 'none';
+        });
+
+        window.addEventListener('click', (event) => {
+            if (event.target === responseModal) {
+                responseModal.style.display = 'none';
+            }
+        });
+    } else {
+        console.error("Modal elements or terminal body not found for setting up click listeners.");
+    }
+
 
     // --- "Confirm and Proceed" Button Click Logic (Initiates Attack Simulation) ---
     if (confirmAndProceedBtn) {
@@ -286,30 +332,31 @@ document.addEventListener('DOMContentLoaded', () => {
             confirmAndProceedBtn.disabled = true;
             confirmAndProceedBtn.textContent = 'Processing...';
 
+            attemptDetailsStore = {}; // Clear details from previous run
+
             const usernameFile = usernameListInput.files.length > 0 ? usernameListInput.files[0] : null;
             const passwordFile = passwordListInput.files.length > 0 ? passwordListInput.files[0] : null;
             const targetPostUrl = detectedPostUrlInput ? detectedPostUrlInput.value.trim() : '';
             const usernameFieldName = detectedUsernameFieldInput ? detectedUsernameFieldInput.value.trim() : '';
             const passwordFieldName = detectedPasswordFieldInput ? detectedPasswordFieldInput.value.trim() : '';
 
-            // Activate Step 3 and deactivate Step 1 first
             if (step1Panel) step1Panel.classList.remove('active');
             if (step3Panel) step3Panel.classList.add('active');
 
-            // Ensure terminalBody is the one in the active step 3
-            const currentTerminalBody = document.querySelector('#step3.active .terminal-body');
-            if (currentTerminalBody) {
-                currentTerminalBody.innerHTML = ''; // Clear previous terminal messages
-                terminalBody = currentTerminalBody; // Update the global-like terminalBody reference
+            terminalBody = document.querySelector('#step3.active .terminal-body'); // Ensure terminalBody is up-to-date
+            if (terminalBody) {
+                terminalBody.innerHTML = '';
             } else {
                 console.error("Could not find active terminal body in Step 3 for clearing.");
+                // If terminalBody is critical and not found, might need to stop or alert user.
             }
 
-            addLogMessage(`Initiating login attempts against ${targetPostUrl}...`, 'info');
+            addLogMessage(`Initiating login attempts against ${targetPostUrl}...`, 'info', {logId: 'init-log'});
+
 
             if (!usernameFile) {
                 alert("Please select a username/email list file.");
-                addLogMessage("Error: Username/Email list file not selected. Please return to Step 1.", 'fail');
+                addLogMessage("Error: Username/Email list file not selected. Please return to Step 1.", 'fail', {status: 'error', logId: 'error-no-userfile'});
                 confirmAndProceedBtn.disabled = false;
                 confirmAndProceedBtn.textContent = originalConfirmBtnText;
                 if (step3Panel) step3Panel.classList.remove('active');
@@ -320,6 +367,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 alert("Invalid username file type. Please upload a .txt or .csv file.");
                 if(usernameListInput) usernameListInput.value = '';
                 if(selectedUsernameFileNameDisplay) selectedUsernameFileNameDisplay.textContent = 'No file selected.';
+                addLogMessage("Error: Invalid username file type. Please return to Step 1.", 'fail', {status: 'error', logId: 'error-userfile-type'});
                 confirmAndProceedBtn.disabled = false;
                 confirmAndProceedBtn.textContent = originalConfirmBtnText;
                 if (step3Panel) step3Panel.classList.remove('active');
@@ -328,6 +376,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             if (usernameFile.size > 1 * 1024 * 1024) { // 1MB limit
                 alert("Username file is too large. Maximum size is 1MB.");
+                addLogMessage("Error: Username file too large. Please return to Step 1.", 'fail', {status: 'error', logId: 'error-userfile-size'});
                 confirmAndProceedBtn.disabled = false;
                 confirmAndProceedBtn.textContent = originalConfirmBtnText;
                 if (step3Panel) step3Panel.classList.remove('active');
@@ -336,7 +385,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             if (!passwordFile) {
                 alert("Password file not selected. Please go back and select a password file.");
-                addLogMessage("Error: Password file not selected. Please return to Step 1.", 'fail');
+                addLogMessage("Error: Password file not selected. Please return to Step 1.", 'fail', {status: 'error', logId: 'error-nopassfile'});
                 confirmAndProceedBtn.disabled = false;
                 confirmAndProceedBtn.textContent = originalConfirmBtnText;
                 if (step3Panel) step3Panel.classList.remove('active');
@@ -347,7 +396,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 !passwordFieldName || passwordFieldName === 'Could not auto-detect' ||
                 !usernameFieldName || usernameFieldName === 'Could not auto-detect') {
                 alert("Critical form parameters (POST URL, Username Field Name, or Password Field Name) are missing or were not detected properly. Please ensure form analysis was successful and confirm the detected values. Return to Step 1 to re-analyze if needed.");
-                addLogMessage("Error: Critical form parameters missing. Check analysis results. Return to Step 1.", 'fail');
+                addLogMessage("Error: Critical form parameters missing. Check analysis results. Return to Step 1.", 'fail', {status: 'error', logId: 'error-params'});
                 confirmAndProceedBtn.disabled = false;
                 confirmAndProceedBtn.textContent = originalConfirmBtnText;
                 if (step3Panel) step3Panel.classList.remove('active');
@@ -355,8 +404,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            addLogMessage(`Username Field: ${usernameFieldName}`, 'info');
-            addLogMessage(`Password Field: ${passwordFieldName}`, 'info');
+            addLogMessage(`Username Field: ${usernameFieldName}`, 'info', {logId: 'info-userfield'});
+            addLogMessage(`Password Field: ${passwordFieldName}`, 'info', {logId: 'info-passfield'});
 
             let usernames = [];
             let passwords = [];
@@ -369,13 +418,13 @@ document.addEventListener('DOMContentLoaded', () => {
             if (hitsCountEl) hitsCountEl.textContent = totalHits;
 
             try {
-                addLogMessage(`Reading username file: ${usernameFile.name}...`, 'info');
+                addLogMessage(`Reading username file: ${usernameFile.name}...`, 'info', {logId: 'info-read-userfile'});
                 usernames = await readUsernamesFromFile(usernameFile);
-                addLogMessage(`Successfully read ${usernames.length} username(s).`, 'info');
+                addLogMessage(`Successfully read ${usernames.length} username(s).`, 'info', {logId: 'info-read-userfile-done'});
 
-                addLogMessage(`Reading password file: ${passwordFile.name}...`, 'info');
+                addLogMessage(`Reading password file: ${passwordFile.name}...`, 'info', {logId: 'info-read-passfile'});
                 passwords = await readPasswordsFromFile(passwordFile);
-                addLogMessage(`Successfully read ${passwords.length} password(s). Starting tests...`, 'info');
+                addLogMessage(`Successfully read ${passwords.length} password(s). Starting tests...`, 'info', {logId: 'info-read-passfile-done'});
 
                 const payload = {
                     target_post_url: targetPostUrl,
@@ -416,12 +465,11 @@ document.addEventListener('DOMContentLoaded', () => {
                             if (buffer.trim()) {
                                 processBuffer();
                             }
-                            // Check if the last message was not a completion event, then add one.
-                            // This is a fallback if the server stream ends before sending 'complete'.
-                            const terminalMessages = currentTerminalBody ? currentTerminalBody.querySelectorAll('p') : [];
+                            const currentTerminalBodyRef = document.querySelector('#step3.active .terminal-body');
+                            const terminalMessages = currentTerminalBodyRef ? currentTerminalBodyRef.querySelectorAll('p') : [];
                             const lastMessage = terminalMessages.length > 0 ? terminalMessages[terminalMessages.length-1].textContent : "";
-                            if (!lastMessage.includes("All attempts finished")) {
-                                addLogMessage("Stream ended. All available results processed.", "info");
+                            if (!lastMessage.includes("All attempts finished") && !lastMessage.includes("server signal")) { // Avoid double complete message
+                                addLogMessage("Stream ended. All available results processed.", "info", {logId: `complete-stream-end-${Date.now()}`});
                             }
                             break;
                         }
@@ -438,8 +486,10 @@ document.addEventListener('DOMContentLoaded', () => {
                             let jsonDataString = messageBlock.substring(5).trim();
                             try {
                                 let result_item = JSON.parse(jsonDataString);
+                                const currentAttemptId = `logEntry-${totalAttempts + 1}`; // Generate ID before incrementing totalAttempts for this item
+
                                 if (result_item.status === 'complete') {
-                                    addLogMessage(result_item.message || "All attempts finished (server signal).", "info");
+                                    addLogMessage(result_item.message || "All attempts finished (server signal).", "info", {logId: `complete-server-${Date.now()}`});
                                 } else {
                                     totalAttempts++;
                                     if (result_item.status === 'success') {
@@ -452,14 +502,22 @@ document.addEventListener('DOMContentLoaded', () => {
                                     const clText = result_item.content_length !== undefined && result_item.content_length !== null ? result_item.content_length : 'N/A';
                                     const logDetail = `[${result_item.status.toUpperCase()}] User: ${result_item.username} / Pass: ${displayPassword} (CL: ${clText}) - ${result_item.details}`;
 
+                                    // Store details for modal
+                                    attemptDetailsStore[currentAttemptId] = {
+                                        request_details: result_item.request_details,
+                                        response_body: result_item.response_body
+                                    };
+
                                     addLogMessage(logDetail, result_item.status, {
+                                        id: currentAttemptId, // Set the actual ID for the <p> element
+                                        logId: currentAttemptId, // Set data-log-id for easier selection
                                         status: result_item.status,
                                         contentLength: result_item.content_length
                                     });
                                 }
                             } catch (e) {
                                 console.error("Error parsing streamed JSON:", e, jsonDataString);
-                                addLogMessage(`Error parsing streamed data: ${jsonDataString}`, 'error', {status: 'error'});
+                                addLogMessage(`Error parsing streamed data: ${jsonDataString}`, 'error', {status: 'error', logId: `error-parse-${Date.now()}`});
                             }
                         }
                     }
@@ -470,7 +528,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             } catch (error) {
                 console.error("Error during credential testing setup or API call:", error);
-                addLogMessage(`Error: ${error.message}`, 'fail', {status: 'error'}); // Ensure error logs also get a status
+                addLogMessage(`Error: ${error.message}`, 'fail', {status: 'error', logId: `error-setup-${Date.now()}`});
                 alert(`An error occurred: ${error.message}`);
                 if (step3Panel) step3Panel.classList.remove('active');
                 if (step1Panel) step1Panel.classList.add('active');

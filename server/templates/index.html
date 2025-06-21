@@ -134,7 +134,8 @@
                                  <span id="filter-all" class="active">ALL</span>
                                  <span id="filter-hits">HITS</span>
                                  <span id="filter-fails">FAILS</span>
-                                 <span id="filter-content-length">CONTENT LENGTH</span> <!-- New filter -->
+                                 <span id="filter-content-length">CONTENT LENGTH</span>
+                                 <span id="filter-response">RESPONSE</span> <!-- New filter -->
                              </div>
                          </div>
                          <div class="terminal-body">
@@ -167,6 +168,23 @@
             </div>
 
         </main>
+    </div>
+
+    <div id="responseModal" class="modal" style="display:none;">
+        <div class="modal-content">
+            <span id="modalCloseBtn" class="modal-close-btn">&times;</span>
+            <h3 class="modal-title">HTTP Transaction Details</h3>
+
+            <div class="modal-section">
+                <h4 class="modal-subtitle">Request Details:</h4>
+                <pre id="modalRequestDetails" class="modal-code-block"></pre>
+            </div>
+
+            <div class="modal-section">
+                <h4 class="modal-subtitle">Response Body:</h4>
+                <pre id="modalResponseBody" class="modal-code-block"></pre>
+            </div>
+        </div>
     </div>
     <script src="{{ url_for('static', filename='script.js') }}" defer></script>
 </body>

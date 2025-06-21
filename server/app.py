@@ -246,13 +246,16 @@ def test_credentials():
                     if csrf_token_name and csrf_token_value:
                         payload[csrf_token_name] = csrf_token_value
 
+                    # current_payload_for_request is the 'payload' dict defined a few lines above
                     attempt_result = {
                         "username": username_attempt,
-                        "password": password_attempt,
+                        "password_actual": password_attempt, # Renamed for clarity from "password"
                         "status": "unknown",
                         "response_url": None,
                         "status_code": None,
-                        "content_length": None, # Initialize content_length
+                        "content_length": None,
+                        "request_details": payload.copy(), # Store a copy of the request payload
+                        "response_body": None,
                         "details": ""
                     }
 
@@ -272,19 +275,28 @@ def test_credentials():
                         attempt_result["status_code"] = response.status_code
                         attempt_result["response_url"] = response.url
 
-                        response_text_for_length = ""
+                        response_text_content = ""
                         try:
-                            response_text_for_length = response.text
-                            attempt_result["content_length"] = len(response_text_for_length)
-                        except Exception as e_text:
-                            app.logger.warning(f"Could not get len(response.text) for user {username_attempt}: {e_text}")
+                            response_text_content = response.text
+                            attempt_result["content_length"] = len(response_text_content)
+                            attempt_result["response_body"] = response_text_content
+
+                            MAX_RESPONSE_BODY_LOG_WARN_SIZE = 1 * 1024 * 1024 # 1MB
+                            if len(response_text_content) > MAX_RESPONSE_BODY_LOG_WARN_SIZE:
+                                app.logger.warning(
+                                    f"Response body for {username_attempt} with password '********' is very large: "
+                                    f"{len(response_text_content)} bytes. Consider implications for streaming and frontend memory."
+                                )
+                        except Exception as e_text_body:
+                            app.logger.warning(f"Could not get response.text for response_body for user {username_attempt}: {e_text_body}")
+                            attempt_result["response_body"] = f"Error retrieving response body: {str(e_text_body)}"
                             header_cl = response.headers.get('Content-Length')
                             if header_cl and header_cl.isdigit():
                                 attempt_result["content_length"] = int(header_cl)
                             else:
                                 attempt_result["content_length"] = -1 # Indicate unavailable
 
-                        response_text_lower = response_text_for_length.lower() # Use the already fetched text
+                        response_text_lower = response_text_content.lower() # Use the already fetched text
                         attempt_result["status"] = "failure"
 
                         found_error_message_text = None
