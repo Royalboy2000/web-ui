@@ -11,7 +11,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const loginUrlInput = document.getElementById('login-url');
     const analyzeFormButton = document.querySelector('.btn-analyze');
 
-    // Username file input elements
     const usernameListInput = document.getElementById('username-list-upload');
     const browseUsernameFilesButton = document.getElementById('browse-username-files-btn');
     const selectedUsernameFileNameDisplay = document.getElementById('selected-username-file-name');
@@ -20,28 +19,26 @@ document.addEventListener('DOMContentLoaded', () => {
     const browsePasswordFilesButton = document.getElementById('browse-files-btn');
     const selectedPasswordFileNameDisplay = document.getElementById('selected-password-file-name');
 
-    // New DOM references for analysis results panel
     const formAnalysisResultsPanel = document.getElementById('form-analysis-results');
     const detectedUsernameFieldInput = document.getElementById('detected-username-field');
     const detectedPasswordFieldInput = document.getElementById('detected-password-field');
     const detectedPostUrlInput = document.getElementById('detected-post-url');
     const confirmAndProceedBtn = document.getElementById('confirm-and-proceed-btn');
 
-    var terminalBody = document.querySelector('.terminal-body'); // Main terminal body
+    let terminalBody = document.querySelector('#step1 .terminal-body'); // Initial assignment, might be updated
+    const step1Panel = document.getElementById('step1');
+    const step3Panel = document.getElementById('step3');
+
 
     // --- File Input "Browse" Button Functionality ---
     if (browseUsernameFilesButton && usernameListInput) {
-        browseUsernameFilesButton.addEventListener('click', () => {
-            usernameListInput.click();
-        });
+        browseUsernameFilesButton.addEventListener('click', () => usernameListInput.click());
     } else {
         console.error('Username browse button or file input not found.');
     }
 
     if (browsePasswordFilesButton && passwordListInput) {
-        browsePasswordFilesButton.addEventListener('click', () => {
-            passwordListInput.click();
-        });
+        browsePasswordFilesButton.addEventListener('click', () => passwordListInput.click());
     } else {
         console.error('Password browse button or file input not found.');
     }
@@ -57,7 +54,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
         } else {
-            console.error('File input or display element not found for setup:', fileInput, displayElement);
+            console.error('File input or display element not found for setup:', { fileInput, displayElement });
         }
     }
 
@@ -72,14 +69,10 @@ document.addEventListener('DOMContentLoaded', () => {
             event.preventDefault();
             if(formAnalysisResultsPanel) formAnalysisResultsPanel.style.display = 'none';
 
-            // Password file and URL are key for analysis. Username file is for testing step.
             const passwordFile = passwordListInput.files.length > 0 ? passwordListInput.files[0] : null;
             const loginUrl = loginUrlInput.value.trim();
 
-            // Password file is not strictly needed for /analyze_url, but good to have it selected by this stage.
-            // For this version, we'll keep the check.
-            if (!passwordFile) { alert("Please select a password list file."); return; }
-
+            if (!passwordFile) { alert("Please select a password list file (used for context and required for testing step)."); return; }
             if (passwordFile.type !== 'text/plain' && passwordFile.type !== 'text/csv') {
                 alert("Invalid password file type. Please upload a .txt or .csv file.");
                 if(passwordListInput) passwordListInput.value = '';
@@ -94,9 +87,9 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             if (!loginUrl) { alert("Please enter the login URL."); return; }
             try {
-                const url = new URL(loginUrl);
-                if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-                    alert('Invalid login URL. Must start with http:// or https://'); return;
+                new URL(loginUrl); // Basic format check
+                if (!loginUrl.startsWith('http://') && !loginUrl.startsWith('https://')) {
+                     alert('Invalid login URL. Must start with http:// or https://'); return;
                 }
             } catch (e) {
                 alert("Invalid login URL format. Please enter a full URL (e.g., https://example.com/login)."); return;
@@ -114,7 +107,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     body: JSON.stringify({ url: loginUrl }),
                 });
                 const analysis = await apiResponse.json();
-                if (!apiResponse.ok) { throw new Error(analysis.error || `API Error: ${apiResponse.status}`); }
+                if (!apiResponse.ok) { throw new Error(analysis.error || `API Error: ${apiResponse.status} - ${apiResponse.statusText}`); }
 
                 if (analysis.error) {
                     alert(`Analysis Error: ${analysis.error}`);
@@ -131,10 +124,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     window.attackContext.csrfTokenValue = analysis.csrf_token_value;
                     window.attackContext.initialCookies = analysis.cookies;
                     window.attackContext.analyzedUrl = loginUrl;
+                     // Add a small success message for analysis completion
+                    console.log("Form analysis complete. Detected parameters populated.");
                 }
             } catch (error) {
                 console.error("Error during form analysis call:", error);
-                alert(`Failed to analyze form: ${error.message}. Check console for details.`);
+                alert(`Failed to analyze form: ${error.message}. Check console for details, and ensure the backend server is running.`);
                 if (detectedUsernameFieldInput) detectedUsernameFieldInput.value = '';
                 if (detectedPasswordFieldInput) detectedPasswordFieldInput.value = '';
                 if (detectedPostUrlInput) detectedPostUrlInput.value = '';
@@ -154,10 +149,14 @@ document.addEventListener('DOMContentLoaded', () => {
         console.error('Analyze form button not found.');
     }
 
+    // --- Helper function to add messages to the terminal ---
     function addLogMessage(message, type = 'info') {
-        const currentTerminalBody = document.querySelector('#step3 .terminal-body');
-        if (!currentTerminalBody) { // Fallback if step 3 is not active/visible
-            console.log(`[${type.toUpperCase()}] Log (terminal not visible): ${message}`);
+        const currentTerminalBody = document.querySelector('#step3.active .terminal-body'); // Ensure we target terminal in active step 3
+        if (!currentTerminalBody) {
+            // If step 3 is not active, we might not want to log to its terminal yet,
+            // or we might have a different logging area for early messages.
+            // For now, if step3 isn't active, log to console as a fallback.
+            console.log(`[${type.toUpperCase()}] Log (Step 3 terminal not active): ${message}`);
             return;
         }
         const p = document.createElement('p');
@@ -167,7 +166,7 @@ document.addEventListener('DOMContentLoaded', () => {
         msgSpan.textContent = message;
         if (type === 'success') msgSpan.className = 'status-success';
         else if (type === 'fail') msgSpan.className = 'status-fail';
-        else msgSpan.className = 'status-info';
+        else msgSpan.className = 'status-info'; // Default or for 'info'
         p.appendChild(msgSpan);
         currentTerminalBody.appendChild(p);
         currentTerminalBody.scrollTop = currentTerminalBody.scrollHeight;
@@ -221,14 +220,14 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // --- "Confirm and Proceed" Button Click Logic (Initiates Attack Simulation) ---
     if (confirmAndProceedBtn) {
+        const originalConfirmBtnText = confirmAndProceedBtn.textContent;
+
         confirmAndProceedBtn.addEventListener('click', async (event) => {
             event.preventDefault();
             confirmAndProceedBtn.disabled = true;
             confirmAndProceedBtn.textContent = 'Processing...';
-
-            const step1Panel = document.getElementById('step1');
-            const step3Panel = document.getElementById('step3');
 
             const usernameFile = usernameListInput.files.length > 0 ? usernameListInput.files[0] : null;
             const passwordFile = passwordListInput.files.length > 0 ? passwordListInput.files[0] : null;
@@ -236,12 +235,15 @@ document.addEventListener('DOMContentLoaded', () => {
             const usernameFieldName = detectedUsernameFieldInput ? detectedUsernameFieldInput.value.trim() : '';
             const passwordFieldName = detectedPasswordFieldInput ? detectedPasswordFieldInput.value.trim() : '';
 
-            // Activate Step 3 and deactivate Step 1 (do this before clearing terminal)
+            // Activate Step 3 and deactivate Step 1 first
             if (step1Panel) step1Panel.classList.remove('active');
             if (step3Panel) step3Panel.classList.add('active');
 
-            const currentTerminalBody = document.querySelector('#step3 .terminal-body');
-            if (currentTerminalBody) currentTerminalBody.innerHTML = ''; // Clear previous terminal messages
+            const currentTerminalBody = document.querySelector('#step3.active .terminal-body');
+            if (currentTerminalBody) currentTerminalBody.innerHTML = '';
+            else { // Fallback if querySelector fails for some reason
+                console.error("Could not find active terminal body in Step 3 for clearing.");
+            }
 
             addLogMessage(`Initiating login attempts against ${targetPostUrl}...`, 'info');
 
@@ -249,7 +251,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 alert("Please select a username/email list file.");
                 addLogMessage("Error: Username/Email list file not selected. Please return to Step 1.", 'fail');
                 confirmAndProceedBtn.disabled = false;
-                confirmAndProceedBtn.textContent = 'Confirm and Proceed';
+                confirmAndProceedBtn.textContent = originalConfirmBtnText;
                 if (step3Panel) step3Panel.classList.remove('active');
                 if (step1Panel) step1Panel.classList.add('active');
                 return;
@@ -259,25 +261,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 if(usernameListInput) usernameListInput.value = '';
                 if(selectedUsernameFileNameDisplay) selectedUsernameFileNameDisplay.textContent = 'No file selected.';
                 confirmAndProceedBtn.disabled = false;
-                confirmAndProceedBtn.textContent = 'Confirm and Proceed';
+                confirmAndProceedBtn.textContent = originalConfirmBtnText;
                 if (step3Panel) step3Panel.classList.remove('active');
                 if (step1Panel) step1Panel.classList.add('active');
                 return;
             }
-            if (usernameFile.size > 1 * 1024 * 1024) { // 1MB limit for username list
+            if (usernameFile.size > 1 * 1024 * 1024) { // 1MB limit
                 alert("Username file is too large. Maximum size is 1MB.");
                 confirmAndProceedBtn.disabled = false;
-                confirmAndProceedBtn.textContent = 'Confirm and Proceed';
+                confirmAndProceedBtn.textContent = originalConfirmBtnText;
                 if (step3Panel) step3Panel.classList.remove('active');
                 if (step1Panel) step1Panel.classList.add('active');
                 return;
             }
-
             if (!passwordFile) {
                 alert("Password file not selected. Please go back and select a password file.");
                 addLogMessage("Error: Password file not selected. Please return to Step 1.", 'fail');
                 confirmAndProceedBtn.disabled = false;
-                confirmAndProceedBtn.textContent = 'Confirm and Proceed';
+                confirmAndProceedBtn.textContent = originalConfirmBtnText;
                 if (step3Panel) step3Panel.classList.remove('active');
                 if (step1Panel) step1Panel.classList.add('active');
                 return;
@@ -286,9 +287,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 !passwordFieldName || passwordFieldName === 'Could not auto-detect' ||
                 !usernameFieldName || usernameFieldName === 'Could not auto-detect') {
                 alert("Critical form parameters (POST URL, Username Field Name, or Password Field Name) are missing or were not detected properly. Please ensure form analysis was successful and confirm the detected values. Return to Step 1 to re-analyze if needed.");
-                addLogMessage("Error: Critical form parameters missing or invalid. Check analysis results. Return to Step 1 to re-analyze.", 'fail');
+                addLogMessage("Error: Critical form parameters missing. Check analysis results. Return to Step 1.", 'fail');
                 confirmAndProceedBtn.disabled = false;
-                confirmAndProceedBtn.textContent = 'Confirm and Proceed';
+                confirmAndProceedBtn.textContent = originalConfirmBtnText;
                 if (step3Panel) step3Panel.classList.remove('active');
                 if (step1Panel) step1Panel.classList.add('active');
                 return;
@@ -297,13 +298,16 @@ document.addEventListener('DOMContentLoaded', () => {
             addLogMessage(`Username Field: ${usernameFieldName}`, 'info');
             addLogMessage(`Password Field: ${passwordFieldName}`, 'info');
 
+            let usernames = [];
+            let passwords = [];
+
             try {
                 addLogMessage(`Reading username file: ${usernameFile.name}...`, 'info');
-                const usernames = await readUsernamesFromFile(usernameFile);
+                usernames = await readUsernamesFromFile(usernameFile);
                 addLogMessage(`Successfully read ${usernames.length} username(s).`, 'info');
 
                 addLogMessage(`Reading password file: ${passwordFile.name}...`, 'info');
-                const passwords = await readPasswordsFromFile(passwordFile);
+                passwords = await readPasswordsFromFile(passwordFile);
                 addLogMessage(`Successfully read ${passwords.length} password(s). Starting tests...`, 'info');
 
                 const attemptsCountEl = document.querySelector('#step3 .metrics-hud .hud-pod:nth-child(1) .hud-value');
@@ -326,42 +330,88 @@ document.addEventListener('DOMContentLoaded', () => {
                     password_list: passwords
                 };
 
-                const apiResponse = await fetch(API_BASE_URL + '/test_credentials', {
+                const response = await fetch(API_BASE_URL + '/test_credentials', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json',},
                     body: JSON.stringify(payload),
                 });
-                const results = await apiResponse.json();
-                if (!apiResponse.ok) { throw new Error(results.error || `API Error: ${apiResponse.status}`); }
 
-                for (const result_item of results) {
-                    totalAttempts++;
-                    let displayPassword = result_item.password;
-                    // Mask password in client-side log for display, even if backend sends it plain for its own result object
-                    if (typeof displayPassword === 'string' && displayPassword.length > 0) {
-                         displayPassword = `${displayPassword.substring(0,1)}***${displayPassword.substring(displayPassword.length-1) || '*'}`;
-                    } else {
-                        displayPassword = "N/A";
-                    }
-                    // Use result_item.username as backend now provides it per attempt
-                    addLogMessage(`[${result_item.status.toUpperCase()}] User: ${result_item.username} / Pass: ${displayPassword} - ${result_item.details}`, result_item.status);
-
-                    if (result_item.status === 'success') {
-                        totalHits++;
-                    }
-                    if (attemptsCountEl) attemptsCountEl.textContent = totalAttempts;
-                    if (hitsCountEl) hitsCountEl.textContent = totalHits;
-                    await new Promise(resolve => setTimeout(resolve, 50));
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({ error: `API Error: ${response.status} ${response.statusText}` }));
+                    throw new Error(errorData.error || `API Error: ${response.status} ${response.statusText}`);
                 }
-                addLogMessage("All credential tests finished.", 'info');
 
-            } catch (error) {
-                console.error("Error during password testing call:", error);
+                if (!response.body) {
+                    throw new Error("Response body is null, cannot read stream.");
+                }
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+
+                async function processStream() {
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) {
+                            console.log("Stream finished.");
+                            if (buffer.trim()) { // Process any remaining data in buffer
+                                processBuffer(); // Final process call
+                            }
+                            break;
+                        }
+                        buffer += decoder.decode(value, { stream: true });
+                        processBuffer();
+                    }
+                }
+
+                function processBuffer() {
+                    let sseMessages = buffer.split('\n\n');
+                    for (let i = 0; i < sseMessages.length - 1; i++) {
+                        let messageBlock = sseMessages[i].trim();
+                        if (messageBlock.startsWith("data:")) {
+                            let jsonDataString = messageBlock.substring(5).trim();
+                            try {
+                                let result_item = JSON.parse(jsonDataString);
+                                if (result_item.status === 'complete') {
+                                    addLogMessage(result_item.message || "All attempts finished (server signal).", "info");
+                                } else {
+                                    totalAttempts++; // Increment here as each data event is an attempt result
+                                    if (result_item.status === 'success') {
+                                        totalHits++;
+                                    }
+                                    if (attemptsCountEl) attemptsCountEl.textContent = totalAttempts;
+                                    if (hitsCountEl) hitsCountEl.textContent = totalHits;
+
+                                    const displayPassword = result_item.password ? result_item.password.replace(/./g, '*') : 'N/A';
+                                    addLogMessage(
+                                        `[${result_item.status.toUpperCase()}] User: ${result_item.username} / Pass: ${displayPassword} - ${result_item.details}`,
+                                        result_item.status
+                                    );
+                                }
+                            } catch (e) {
+                                console.error("Error parsing streamed JSON:", e, jsonDataString);
+                                addLogMessage(`Error parsing streamed data: ${jsonDataString}`, 'error');
+                            }
+                        }
+                    }
+                    buffer = sseMessages[sseMessages.length - 1]; // Keep incomplete message part
+                }
+
+                await processStream();
+                // The 'complete' event from server should be the final log.
+                // addLogMessage("All credential tests finished.", 'info'); // This might be redundant if server sends 'complete'
+
+            } catch (error) { // Catches errors from file reading or initial fetch to /test_credentials
+                console.error("Error during credential testing setup or API call:", error);
                 addLogMessage(`Error: ${error.message}`, 'fail');
-                alert(`An error occurred during credential testing: ${error.message}`);
+                alert(`An error occurred: ${error.message}`);
+                 // Switch back to step 1 on major setup error
+                if (step3Panel) step3Panel.classList.remove('active');
+                if (step1Panel) step1Panel.classList.add('active');
             } finally {
                 confirmAndProceedBtn.disabled = false;
-                confirmAndProceedBtn.textContent = 'Confirm and Proceed';
+                confirmAndProceedBtn.textContent = originalConfirmBtnText;
+                // User stays on Step 3 to see results unless a setup error forced them back
             }
         });
     } else {
