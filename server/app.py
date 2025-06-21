@@ -1,19 +1,18 @@
-from flask import Flask, jsonify, request, render_template, Response # Add Response
+from flask import Flask, jsonify, request, render_template, Response
 import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse
-import json # For serializing data to JSON strings
+import json
+import os
+import sys
 
-# Attempt to import from local common_field_names.py
-try:
-    from .common_field_names import COMMON_USERNAME_FIELDS, COMMON_PASSWORD_FIELDS, COMMON_CSRF_TOKEN_FIELDS
-except ImportError:
-    # Fallback for environments where relative import might fail (e.g. running script directly)
-    import common_field_names
-    COMMON_USERNAME_FIELDS = common_field_names.COMMON_USERNAME_FIELDS
-    COMMON_PASSWORD_FIELDS = common_field_names.COMMON_PASSWORD_FIELDS
-    COMMON_CSRF_TOKEN_FIELDS = common_field_names.COMMON_CSRF_TOKEN_FIELDS
+# Add the parent directory of 'server' to sys.path to find common_field_names
+# This assumes app.py is in a 'server' subdirectory and common_field_names.py is in the root
+# sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# Corrected path insertion: common_field_names.py is in the same directory as app.py (server/)
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+import common_field_names # Now a direct import
 
 app = Flask(__name__, static_folder='static', template_folder='templates')
 
@@ -56,7 +55,8 @@ def analyze_url():
             for p_input in all_password_inputs:
                 p_name = p_input.get('name', '').lower()
                 p_id = p_input.get('id', '').lower()
-                for common_p_name in COMMON_PASSWORD_FIELDS:
+                # Use imported list with prefix
+                for common_p_name in common_field_names.COMMON_PASSWORD_FIELDS:
                     if common_p_name.lower() == p_name or common_p_name.lower() == p_id:
                         password_input_field = p_input
                         app.logger.info(f"Multiple password fields found. Selected '{p_name or p_id}' based on common names.")
@@ -76,7 +76,8 @@ def analyze_url():
         text_inputs = login_form.find_all('input', {'type': ['text', 'email', 'tel', 'number']})
 
         found_username_input = None
-        for name_candidate in COMMON_USERNAME_FIELDS:
+        # Use imported list with prefix and case-insensitive matching
+        for name_candidate in common_field_names.COMMON_USERNAME_FIELDS:
             for inp in text_inputs:
                 if inp == password_input_field: continue
                 input_name_attr = inp.get('name')
@@ -118,7 +119,8 @@ def analyze_url():
         for hidden_in in hidden_inputs:
             input_name = hidden_in.get('name')
             if input_name:
-                for common_csrf_name_candidate in COMMON_CSRF_TOKEN_FIELDS:
+                # Use imported list with prefix and case-insensitive exact matching
+                for common_csrf_name_candidate in common_field_names.COMMON_CSRF_TOKEN_FIELDS:
                     if common_csrf_name_candidate.lower() == input_name.lower():
                         csrf_token_name = input_name
                         csrf_token_value = hidden_in.get('value')
@@ -200,6 +202,7 @@ def test_credentials():
             app.logger.info(f"SSE stream: Starting for {len(username_list)} users and {len(password_list)} passwords (paired).")
             num_pairs_to_test = min(len(username_list), len(password_list))
 
+            # Use imported lists with prefix for error and success keywords
             common_error_messages = [
                 "incorrect password", "invalid password", "login failed", "login failure",
                 "wrong credentials", "authentication failed", "invalid username or password",
@@ -222,10 +225,10 @@ def test_credentials():
                     'Referer': target_post_url
                 }
                 if headers['Origin'] is None:
-                    if 'Origin' in headers: del headers['Origin'] # Ensure it's removed if None
+                    if 'Origin' in headers: del headers['Origin']
 
                 app.logger.info(f"SSE stream: Starting paired credential testing. Number of pairs to test: {num_pairs_to_test}")
-                if num_pairs_to_test == 0: # Should have been caught by list empty checks
+                if num_pairs_to_test == 0:
                     yield f"data: {json.dumps({'status': 'complete', 'message': 'No username/password pairs to test.'})}\n\n"
                     app.logger.info("SSE stream: No pairs to test, sending completion event early.")
                     return
@@ -245,7 +248,7 @@ def test_credentials():
 
                     attempt_result = {
                         "username": username_attempt,
-                        "password": password_attempt, # Actual password sent in stream
+                        "password": password_attempt,
                         "status": "unknown",
                         "response_url": None,
                         "status_code": None,
@@ -327,7 +330,7 @@ def test_credentials():
                     except requests.exceptions.Timeout:
                         attempt_result["status"] = "error"
                         attempt_result["details"] = "Request timed out during login attempt."
-                        app.logger.warning(f"SSE stream: Timeout for user {username_attempt} (pass: ****)", exc_info=False) # exc_info=False for less noise on frequent timeouts
+                        app.logger.warning(f"SSE stream: Timeout for user {username_attempt} (pass: ****)", exc_info=False)
                         yield f"data: {json.dumps(attempt_result)}\n\n"
                     except requests.exceptions.RequestException as e:
                         attempt_result["status"] = "error"
@@ -348,7 +351,6 @@ def test_credentials():
 
     except Exception as e:
         app.logger.error(f"Error in /test_credentials before streaming: {str(e)}", exc_info=True)
-        # Ensure this returns a standard JSON error response, not trying to stream if setup fails
         return jsonify({"error": f"An unexpected server error occurred before streaming could start."}), 500
 
 if __name__ == '__main__':
