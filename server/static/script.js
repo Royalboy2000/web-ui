@@ -16,12 +16,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const uiStepAnalysisReview = document.getElementById('uiStep-AnalysisReview');
     const uiStepCredentialsInput = document.getElementById('uiStep-CredentialsInput');
     const uiStepMonitor = document.getElementById('uiStep-Monitor');
-    const step2Options = document.getElementById('step2-options'); // The old step 2, now for advanced options
+    const step2Options = document.getElementById('step2-options');
 
     // Buttons
     const analyzeFormButton = document.getElementById('analyzeFormButton');
     const proceedToCredentialsBtn = document.getElementById('proceedToCredentialsBtn');
     const launchAttackBtn = document.getElementById('launchAttackBtn');
+    const parseRawRequestBtn = document.getElementById('parseRawRequestBtn'); // New button
 
     // File inputs
     const usernameListInput = document.getElementById('username-list-upload');
@@ -38,67 +39,99 @@ document.addEventListener('DOMContentLoaded', () => {
     const detectedPasswordFieldInput = document.getElementById('detected-password-field');
     const detectedPostUrlInput = document.getElementById('detected-post-url');
 
-    // HUD Elements (ensure these IDs are in index.html)
+    // Raw request input elements
+    const rawRequestInput = document.getElementById('raw-request-input');
+    const capturedParamsDisplay = document.getElementById('capturedParamsDisplay');
+    const capturedParamsText = document.getElementById('capturedParamsText');
+
+    // HUD Elements
     const attemptsCountEl = document.getElementById('hud-total-attempts');
     const hitsCountEl = document.getElementById('hud-hits');
-    // const elapsedTimeEl = document.getElementById('hud-elapsed-time'); // For future use
-    // const etaEl = document.getElementById('hud-eta'); // For future use
+    const elapsedTimeEl = document.getElementById('hud-elapsed-time');
+    const etaEl = document.getElementById('hud-eta');
 
-    // Terminal and filter elements
     let terminalBody = document.querySelector('#uiStep-Monitor .terminal-body');
     const filterAll = document.getElementById('filter-all');
     const filterHits = document.getElementById('filter-hits');
     const filterFails = document.getElementById('filter-fails');
     const filterContentLength = document.getElementById('filter-content-length');
     const filterResponse = document.getElementById('filter-response');
-    const terminalFilterElements = [filterAll, filterHits, filterFails, filterContentLength, filterResponse];
+    const terminalFilters = [filterAll, filterHits, filterFails, filterContentLength, filterResponse].filter(el => el != null);
 
-    // Modal DOM References
+    const sortClAscBtn = document.getElementById('sort-cl-asc');
+    const sortClDescBtn = document.getElementById('sort-cl-desc');
+
     const responseModal = document.getElementById('responseModal');
     const modalCloseBtn = document.getElementById('modalCloseBtn');
     const modalRequestDetails = document.getElementById('modalRequestDetails');
     const modalResponseBody = document.getElementById('modalResponseBody');
 
-    // --- Helper Function for Step Navigation ---
+    let testStartTime;
+    let elapsedTimeInterval;
+    let totalExpectedAttemptsForCurrentTest = 0;
+    let completedAttemptsThisRun = 0;
+
+    function formatTime(totalSeconds) {
+        if (isNaN(totalSeconds) || totalSeconds < 0 || !isFinite(totalSeconds)) return '--:--:--';
+        const hours = Math.floor(totalSeconds / 3600);
+        const minutes = Math.floor((totalSeconds % 3600) / 60);
+        const seconds = Math.floor(totalSeconds % 60);
+        return [hours, minutes, seconds]
+            .map(v => v < 10 ? "0" + v : v)
+            .join(":");
+    }
+
+    function updateTimers() {
+        if (!testStartTime) return;
+        const now = Date.now();
+        const elapsedMs = now - testStartTime;
+        const elapsedSecondsTotal = Math.floor(elapsedMs / 1000);
+        if (elapsedTimeEl) elapsedTimeEl.textContent = formatTime(elapsedSecondsTotal);
+
+        if (etaEl) {
+            if (totalExpectedAttemptsForCurrentTest > 0 && completedAttemptsThisRun > 0 && completedAttemptsThisRun < totalExpectedAttemptsForCurrentTest) {
+                const timePerAttempt = elapsedMs / completedAttemptsThisRun;
+                const remainingAttempts = totalExpectedAttemptsForCurrentTest - completedAttemptsThisRun;
+                const etaMs = remainingAttempts * timePerAttempt;
+                const etaSecondsTotal = Math.floor(etaMs / 1000);
+                etaEl.textContent = formatTime(etaSecondsTotal);
+            } else if (completedAttemptsThisRun >= totalExpectedAttemptsForCurrentTest && totalExpectedAttemptsForCurrentTest > 0) {
+                etaEl.textContent = '00:00:00';
+                if (elapsedTimeInterval) clearInterval(elapsedTimeInterval);
+            } else if (totalExpectedAttemptsForCurrentTest === 0 && completedAttemptsThisRun > 0) {
+                etaEl.textContent = 'Calculating...';
+            } else {
+                etaEl.textContent = '--:--:--';
+            }
+        }
+    }
+
     function showUiStep(stepIdToShow) {
         const allSteps = [uiStepTargetURL, uiStepAnalysisReview, uiStepCredentialsInput, uiStepMonitor, step2Options];
         allSteps.forEach(step => {
             if (step) {
                 step.style.display = (step.id === stepIdToShow) ? 'block' : 'none';
-                step.classList.remove('active'); // Remove active from all
-                if (step.id === stepIdToShow) {
-                    step.classList.add('active'); // Add active to the one being shown
-                }
+                step.classList.remove('active');
+                if (step.id === stepIdToShow) step.classList.add('active');
             }
         });
-        // Ensure terminalBody reference is updated if monitor step is shown
         if (stepIdToShow === 'uiStep-Monitor') {
             terminalBody = document.querySelector('#uiStep-Monitor .terminal-body');
         }
     }
 
-    // --- File Input "Browse" Button Functionality ---
     if (browseUsernameFilesButton && usernameListInput) {
         browseUsernameFilesButton.addEventListener('click', () => usernameListInput.click());
-    } else {
-        console.error('Username browse button or file input not found.');
-    }
+    } else { console.error('Username browse button or file input not found.'); }
 
     if (browsePasswordFilesButton && passwordListInput) {
         browsePasswordFilesButton.addEventListener('click', () => passwordListInput.click());
-    } else {
-        console.error('Password browse button or file input not found.');
-    }
+    } else { console.error('Password browse button or file input not found.'); }
 
-    // --- File Selection Display Functionality ---
     function setupFileInputListener(fileInput, displayElement, defaultText) {
         if (fileInput && displayElement) {
             fileInput.addEventListener('change', () => {
-                if (fileInput.files && fileInput.files.length > 0) {
-                    displayElement.textContent = fileInput.files[0].name;
-                } else {
-                    displayElement.textContent = defaultText;
-                }
+                displayElement.textContent = (fileInput.files && fileInput.files.length > 0) ? fileInput.files[0].name : defaultText;
             });
         } else {
             console.error('File input or display element for setup not found:', { fileInputId: fileInput ? fileInput.id : 'N/A', displayElementId: displayElement ? displayElement.id : 'N/A' });
@@ -108,14 +141,19 @@ document.addEventListener('DOMContentLoaded', () => {
     setupFileInputListener(usernameListInput, selectedUsernameFileNameDisplay, 'No file selected.');
     setupFileInputListener(passwordListInput, selectedPasswordFileNameDisplay, 'No password file selected.');
 
-    // --- "Analyze Form" Button Click Logic ---
     if (analyzeFormButton) {
         const originalButtonText = analyzeFormButton.querySelector('.btn-text').textContent;
         const spinner = analyzeFormButton.querySelector('.spinner');
-
         analyzeFormButton.addEventListener('click', async (event) => {
             event.preventDefault();
-            if(formAnalysisResultsPanel) formAnalysisResultsPanel.style.display = 'none'; // Hide previous results
+
+            // Clear raw request input and its display if user chooses URL analysis
+            if (rawRequestInput) rawRequestInput.value = '';
+            if (capturedParamsDisplay) capturedParamsDisplay.style.display = 'none';
+            if (capturedParamsText) capturedParamsText.textContent = '';
+
+            if(formAnalysisResultsPanel) formAnalysisResultsPanel.style.display = 'none'; // Hide previous results (from either method)
+
 
             const loginUrl = loginUrlInput.value.trim();
 
@@ -143,19 +181,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     body: JSON.stringify({ url: loginUrl }),
                 });
                 const analysis = await apiResponse.json();
-
-                if (!apiResponse.ok) {
-                    throw new Error(analysis.error || `API Error: ${apiResponse.status} - ${apiResponse.statusText || 'Unknown error'}`);
-                }
+                if (!apiResponse.ok) { throw new Error(analysis.error || `API Error: ${apiResponse.status} - ${apiResponse.statusText || 'Unknown error'}`); }
 
                 if (analysis.error) {
                     alert(`Analysis Error: ${analysis.error}`);
                     if (detectedUsernameFieldInput) detectedUsernameFieldInput.value = '';
                     if (detectedPasswordFieldInput) detectedPasswordFieldInput.value = '';
                     if (detectedPostUrlInput) detectedPostUrlInput.value = '';
-                    showUiStep('uiStep-TargetURL'); // Stay on current step if analysis fails
+                    showUiStep('uiStep-TargetURL');
                 } else {
-                    console.log("Analysis successful:", analysis);
+                    console.log("Analysis successful via URL:", analysis);
                     if (detectedUsernameFieldInput) detectedUsernameFieldInput.value = analysis.username_field_name || '';
                     if (detectedPasswordFieldInput) detectedPasswordFieldInput.value = analysis.password_field_name || '';
                     if (detectedPostUrlInput) detectedPostUrlInput.value = analysis.post_url || '';
@@ -164,10 +199,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     window.attackContext.csrfTokenName = analysis.csrf_token_name;
                     window.attackContext.csrfTokenValue = analysis.csrf_token_value;
                     window.attackContext.initialCookies = analysis.cookies;
-                    window.attackContext.analyzedUrl = loginUrl;
+                    window.attackContext.analyzedUrl = loginUrl; // Keep track of what was analyzed
 
                     if (formAnalysisResultsPanel) formAnalysisResultsPanel.style.display = 'block';
-                    showUiStep('uiStep-AnalysisReview'); // Move to review step
+                    if (capturedParamsDisplay) capturedParamsDisplay.style.display = 'none'; // Ensure raw request display is hidden
+                    showUiStep('uiStep-AnalysisReview');
                     console.log("Form analysis complete. Detected parameters populated.");
                 }
             } catch (error) {
@@ -176,86 +212,144 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (detectedUsernameFieldInput) detectedUsernameFieldInput.value = '';
                 if (detectedPasswordFieldInput) detectedPasswordFieldInput.value = '';
                 if (detectedPostUrlInput) detectedPostUrlInput.value = '';
-                showUiStep('uiStep-TargetURL'); // Stay on current step
+                showUiStep('uiStep-TargetURL');
             } finally {
                 [detectedUsernameFieldInput, detectedPasswordFieldInput, detectedPostUrlInput].forEach(input => {
                     if (input) { input.dispatchEvent(new Event('input', { bubbles: true })); }
                 });
-                // formAnalysisResultsPanel display is handled by success/error logic now
                 if(spinner) spinner.style.display = 'none';
                 analyzeFormButton.querySelector('.btn-text').textContent = originalButtonText;
                 analyzeFormButton.disabled = false;
             }
         });
-    } else {
-        console.error('Analyze form button not found.');
-    }
+    } else { console.error('Analyze form button not found.'); }
 
-    // --- "Proceed to Credentials" Button Click Logic ---
+    // --- "Parse Captured Request" Button Click Logic ---
+    if (parseRawRequestBtn) {
+        parseRawRequestBtn.addEventListener('click', async () => {
+            const rawRequest = rawRequestInput.value.trim();
+            if (!rawRequest) {
+                alert("Please paste the captured HTTP request text.");
+                rawRequestInput.focus();
+                return;
+            }
+
+            // Clear URL input if using raw request, and hide normal analysis results display initially
+            if (loginUrlInput) loginUrlInput.value = '';
+            if (formAnalysisResultsPanel) formAnalysisResultsPanel.style.display = 'none';
+            if (capturedParamsDisplay) capturedParamsDisplay.style.display = 'none';
+
+
+            const originalBtnText = parseRawRequestBtn.textContent;
+            parseRawRequestBtn.textContent = 'Parsing...';
+            parseRawRequestBtn.disabled = true;
+            window.attackContext = {}; // Reset context
+
+            try {
+                const response = await fetch(API_BASE_URL + '/parse_captured_request', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ raw_request: rawRequest })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || `Error parsing request. Status: ${response.status} ${response.statusText || 'Unknown error'}`);
+                }
+
+                if (data.error) {
+                    alert(`Raw Request Parsing Error: ${data.error}`);
+                    showUiStep('uiStep-TargetURL');
+                } else {
+                    console.log("Parsed captured request successfully:", data);
+
+                    if (detectedPostUrlInput) detectedPostUrlInput.value = data.post_url || '';
+                    if (detectedUsernameFieldInput) detectedUsernameFieldInput.value = data.username_field_name || 'Could not auto-detect';
+                    if (detectedPasswordFieldInput) detectedPasswordFieldInput.value = data.password_field_name || 'Could not auto-detect';
+
+                    window.attackContext.formMethod = data.form_method || 'POST';
+                    window.attackContext.csrfTokenName = data.csrf_token_name || null;
+                    window.attackContext.csrfTokenValue = data.csrf_token_value || null;
+                    window.attackContext.initialCookies = data.cookies || {};
+                    window.attackContext.analyzedUrl = data.post_url; // Use the parsed post_url as the "analyzed" URL context
+                    window.attackContext.requestHeaders = data.request_headers; // Store all headers from raw request
+
+                    if (capturedParamsText) {
+                        let paramsToShow = {...data.form_parameters};
+                        // Optionally filter out password from display here if needed, though backend sends it
+                        // if (paramsToShow[data.password_field_name]) paramsToShow[data.password_field_name] = "********";
+                        capturedParamsText.textContent = JSON.stringify(paramsToShow, null, 2);
+                    }
+                    if (capturedParamsDisplay) capturedParamsDisplay.style.display = 'block';
+
+                    if (formAnalysisResultsPanel) formAnalysisResultsPanel.style.display = 'block';
+
+                    [detectedPostUrlInput, detectedUsernameFieldInput, detectedPasswordFieldInput].forEach(input => {
+                        if (input) { input.dispatchEvent(new Event('input', { bubbles: true })); }
+                    });
+
+                    showUiStep('uiStep-AnalysisReview');
+                }
+            } catch (error) {
+                console.error("Error parsing captured request via API:", error);
+                alert(`Failed to parse captured request: ${error.message}. Check console for details.`);
+                // Potentially add log message to a general status area if terminal isn't visible
+                showUiStep('uiStep-TargetURL');
+            } finally {
+                parseRawRequestBtn.disabled = false;
+                parseRawRequestBtn.textContent = originalBtnText;
+            }
+        });
+    } else { console.error("Parse Raw Request button not found."); }
+
+
     if (proceedToCredentialsBtn) {
         proceedToCredentialsBtn.addEventListener('click', (event) => {
             event.preventDefault();
             console.log("Proceeding to credentials input step.");
             showUiStep('uiStep-CredentialsInput');
         });
-    } else {
-        console.error("Proceed to Credentials button not found.");
-    }
+    } else { console.error("Proceed to Credentials button not found."); }
 
-    // --- Helper function to add messages to the terminal ---
     function addLogMessage(message, type = 'info', dataAttributes = {}) {
         const currentActiveTerminalBody = document.querySelector('#uiStep-Monitor.active .terminal-body');
         if (!currentActiveTerminalBody) {
-            // If step 3 is not active, log to console. This might happen for initial messages
-            // if confirmAndProceedBtn is clicked before step3 is fully active (though unlikely with current flow).
             console.log(`[${type.toUpperCase()}] Log (Monitor terminal not active): ${message}`);
             return;
         }
         const p = document.createElement('p');
         const time = new Date().toLocaleTimeString();
-
         const timeSpan = document.createElement('span');
         timeSpan.className = 'status-time';
         timeSpan.textContent = `[${time}] `;
         p.appendChild(timeSpan);
-
         const msgSpan = document.createElement('span');
         msgSpan.textContent = message;
-
         if (type === 'success') msgSpan.className = 'status-success';
         else if (type === 'fail' || type === 'error') msgSpan.className = 'status-fail';
         else msgSpan.className = 'status-info';
-
         p.appendChild(msgSpan);
-
-        if (dataAttributes.id) {
-            p.id = dataAttributes.id;
-        }
+        if (dataAttributes.id) p.id = dataAttributes.id;
         for (const key in dataAttributes) {
             if (dataAttributes.hasOwnProperty(key) && dataAttributes[key] !== undefined && dataAttributes[key] !== null) {
                 p.dataset[key] = dataAttributes[key];
             }
         }
-
         currentActiveTerminalBody.appendChild(p);
         currentActiveTerminalBody.scrollTop = currentActiveTerminalBody.scrollHeight;
     }
 
     function readUsernamesFromFile(file) {
         return new Promise((resolve, reject) => {
-            if (!file) {
-                reject(new Error("No username file provided to reader."));
-                return;
-            }
+            if (!file) { reject(new Error("No username file provided to reader.")); return; }
             const reader = new FileReader();
             reader.onload = (e) => {
                 const content = e.target.result;
                 const usernames = content.split('\n').map(u => u.trim()).filter(u => u);
                 if (usernames.length === 0) {
                     reject(new Error("Username file is empty or does not contain valid usernames. Each username should be on a new line."));
-                } else {
-                    resolve(usernames);
-                }
+                } else { resolve(usernames); }
             };
             reader.onerror = (e) => {
                 console.error("FileReader error for username file:", e);
@@ -267,10 +361,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function readPasswordsFromFile(file) {
         return new Promise((resolve, reject) => {
-            if (!file) {
-                reject(new Error("No password file provided to reader."));
-                return;
-            }
+            if (!file) { reject(new Error("No password file provided to reader.")); return; }
             const reader = new FileReader();
             reader.onload = (e) => {
                 const content = e.target.result;
@@ -289,88 +380,128 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- Terminal Filter Logic ---
-    terminalFilterElements.forEach(filterElement => {
+    function getActiveVisibilityFilterId() {
+        const activeFilter = terminalFilters.find(btn => btn && btn.classList.contains('active'));
+        return activeFilter ? activeFilter.id : 'filter-all';
+    }
+
+    function applyActiveVisibilityFilter() {
+        const currentActiveTerminalBody = document.querySelector('#uiStep-Monitor.active .terminal-body');
+        if (!currentActiveTerminalBody) return;
+        const activeFilterId = getActiveVisibilityFilterId();
+        const logEntries = currentActiveTerminalBody.querySelectorAll('p');
+        logEntries.forEach(entry => {
+            let showEntry = false;
+            const status = entry.dataset.status;
+            switch (activeFilterId) {
+                case 'filter-all':
+                case 'filter-content-length':
+                case 'filter-response':
+                    showEntry = true;
+                    break;
+                case 'filter-hits':
+                    if (status === 'success') showEntry = true;
+                    break;
+                case 'filter-fails':
+                    if (status === 'failure' || status === 'error') showEntry = true;
+                    break;
+            }
+            entry.style.display = showEntry ? '' : 'none';
+        });
+    }
+
+    terminalFilters.forEach(filterElement => {
         if (filterElement) {
             filterElement.addEventListener('click', (event) => {
-                terminalFilterElements.forEach(el => el && el.classList.remove('active'));
+                terminalFilters.forEach(el => el && el.classList.remove('active'));
                 event.currentTarget.classList.add('active');
-                const activeFilterId = event.currentTarget.id;
-
-                const currentActiveTerminalBody = document.querySelector('#uiStep-Monitor.active .terminal-body');
-                if (!currentActiveTerminalBody) return;
-                const logEntries = currentActiveTerminalBody.querySelectorAll('p');
-
-                logEntries.forEach(entry => {
-                    let showEntry = false;
-                    const status = entry.dataset.status;
-
-                    switch (activeFilterId) {
-                        case 'filter-all':
-                        case 'filter-content-length':
-                        case 'filter-response':
-                            showEntry = true;
-                            break;
-                        case 'filter-hits':
-                            if (status === 'success') showEntry = true;
-                            break;
-                        case 'filter-fails':
-                            if (status === 'failure' || status === 'error') showEntry = true;
-                            break;
-                    }
-                    entry.style.display = showEntry ? '' : 'none';
-                });
+                applyActiveVisibilityFilter();
             });
         }
     });
 
-    // --- Modal Click Logic ---
-    // Ensure terminalBody for event delegation is specifically the one in uiStep-Monitor
+    function sortLogEntriesByContentLength(direction) {
+        const currentActiveTerminalBody = document.querySelector('#uiStep-Monitor.active .terminal-body');
+        if (!currentActiveTerminalBody) return;
+        const logEntries = Array.from(currentActiveTerminalBody.querySelectorAll('p'));
+        logEntries.sort((a, b) => {
+            const valAStr = a.dataset.contentLength;
+            const valBStr = b.dataset.contentLength;
+            let valA = (valAStr === 'N/A' || valAStr === undefined || valAStr === null) ? (direction === 1 ? -Infinity : Infinity) : parseInt(valAStr, 10);
+            let valB = (valBStr === 'N/A' || valBStr === undefined || valBStr === null) ? (direction === 1 ? -Infinity : Infinity) : parseInt(valBStr, 10);
+            if (isNaN(valA)) valA = (direction === 1 ? -Infinity : Infinity);
+            if (isNaN(valB)) valB = (direction === 1 ? -Infinity : Infinity);
+            return (valA - valB) * direction;
+        });
+        logEntries.forEach(entry => currentActiveTerminalBody.appendChild(entry));
+        applyActiveVisibilityFilter();
+    }
+
+    if (sortClAscBtn) {
+        sortClAscBtn.addEventListener('click', () => {
+            console.log("Sorting by Content Length Ascending");
+            sortClAscBtn.classList.add('active-sort');
+            if (sortClDescBtn) sortClDescBtn.classList.remove('active-sort');
+            sortLogEntriesByContentLength(1);
+        });
+    } else { console.error("Sort Ascending button not found"); }
+
+    if (sortClDescBtn) {
+        sortClDescBtn.addEventListener('click', () => {
+            console.log("Sorting by Content Length Descending");
+            sortClDescBtn.classList.add('active-sort');
+            if (sortClAscBtn) sortClAscBtn.classList.remove('active-sort');
+            sortLogEntriesByContentLength(-1);
+        });
+    } else { console.error("Sort Descending button not found"); }
+
     const monitorTerminalBody = document.querySelector('#uiStep-Monitor .terminal-body');
     if (monitorTerminalBody && responseModal && modalRequestDetails && modalResponseBody && modalCloseBtn) {
         monitorTerminalBody.addEventListener('click', (event) => {
             const clickedP = event.target.closest('p[data-log-id]');
             if (clickedP) {
                 const logId = clickedP.dataset.logId;
-                if (attemptDetailsStore[logId] && attemptDetailsStore[logId].request_details !== undefined) { // Check if it's an attempt log
+                if (attemptDetailsStore[logId] && attemptDetailsStore[logId].request_details !== undefined) {
                     const details = attemptDetailsStore[logId];
                     modalRequestDetails.textContent = JSON.stringify(details.request_details, null, 2);
                     modalResponseBody.textContent = details.response_body || "No response body captured or applicable.";
                     responseModal.style.display = 'block';
                 } else {
                     console.warn(`No detailed data in store for logId: ${logId}. Entry:`, clickedP.textContent);
-                    // Optionally, do not open modal for non-detailed logs, or show a simpler message
-                    // For now, we allow opening but it will show "No details available"
                     modalRequestDetails.textContent = "No request details available for this log entry.";
                     modalResponseBody.textContent = "No response body available for this log entry (this might be an informational message).";
                     responseModal.style.display = 'block';
                 }
             }
         });
-
-        modalCloseBtn.addEventListener('click', () => {
-            responseModal.style.display = 'none';
-        });
-
+        modalCloseBtn.addEventListener('click', () => { responseModal.style.display = 'none'; });
         window.addEventListener('click', (event) => {
-            if (event.target === responseModal) {
-                responseModal.style.display = 'none';
-            }
+            if (event.target === responseModal) { responseModal.style.display = 'none'; }
         });
     } else {
         console.error("Modal elements or monitor terminal body not found for setting up click listeners.");
     }
 
-    // --- "Launch Attack" Button Click Logic (was Confirm and Proceed) ---
     if (launchAttackBtn) {
         const originalLaunchBtnText = launchAttackBtn.textContent;
-
         launchAttackBtn.addEventListener('click', async (event) => {
             event.preventDefault();
             launchAttackBtn.disabled = true;
             launchAttackBtn.textContent = 'Launching...';
 
-            attemptDetailsStore = {}; // Clear details from previous run
+            attemptDetailsStore = {};
+            completedAttemptsThisRun = 0;
+            totalExpectedAttemptsForCurrentTest = 0;
+            testStartTime = Date.now();
+            if (elapsedTimeInterval) clearInterval(elapsedTimeInterval);
+            elapsedTimeInterval = setInterval(updateTimers, 1000);
+            if (elapsedTimeEl) elapsedTimeEl.textContent = '00:00:00';
+            if (etaEl) etaEl.textContent = '--:--:--';
+
+            let totalAttemptsForHUD = 0;
+            let totalHitsForHUD = 0;
+            if (attemptsCountEl) attemptsCountEl.textContent = totalAttemptsForHUD;
+            if (hitsCountEl) hitsCountEl.textContent = totalHitsForHUD;
 
             const usernameFile = usernameListInput.files.length > 0 ? usernameListInput.files[0] : null;
             const passwordFile = passwordListInput.files.length > 0 ? passwordListInput.files[0] : null;
@@ -378,12 +509,13 @@ document.addEventListener('DOMContentLoaded', () => {
             const usernameFieldName = detectedUsernameFieldInput ? detectedUsernameFieldInput.value.trim() : '';
             const passwordFieldName = detectedPasswordFieldInput ? detectedPasswordFieldInput.value.trim() : '';
 
-            // Ensure terminalBody is correctly referenced for the monitor step before logging
-            terminalBody = document.querySelector('#uiStep-Monitor .terminal-body');
+            showUiStep('uiStep-Monitor');
+
+            terminalBody = document.querySelector('#uiStep-Monitor.active .terminal-body');
             if (terminalBody) {
                 terminalBody.innerHTML = '';
             } else {
-                console.error("Could not find terminal body in Step Monitor for clearing.");
+                console.error("Could not find active terminal body in Step Monitor for clearing.");
             }
 
             addLogMessage(`Initiating login attempts against ${targetPostUrl}...`, 'info', {logId: `init-log-${Date.now()}`});
@@ -393,7 +525,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 addLogMessage("Error: Username/Email list file not selected.", 'fail', {status: 'error', logId: `error-no-userfile-${Date.now()}`});
                 launchAttackBtn.disabled = false;
                 launchAttackBtn.textContent = originalLaunchBtnText;
-                showUiStep('uiStep-CredentialsInput'); // Stay on credentials input step
+                showUiStep('uiStep-CredentialsInput');
+                if (elapsedTimeInterval) clearInterval(elapsedTimeInterval);
                 return;
             }
             if (usernameFile.type !== 'text/plain' && usernameFile.type !== 'text/csv') {
@@ -404,6 +537,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 launchAttackBtn.disabled = false;
                 launchAttackBtn.textContent = originalLaunchBtnText;
                 showUiStep('uiStep-CredentialsInput');
+                if (elapsedTimeInterval) clearInterval(elapsedTimeInterval);
                 return;
             }
             if (usernameFile.size > 1 * 1024 * 1024) {
@@ -412,6 +546,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 launchAttackBtn.disabled = false;
                 launchAttackBtn.textContent = originalLaunchBtnText;
                 showUiStep('uiStep-CredentialsInput');
+                if (elapsedTimeInterval) clearInterval(elapsedTimeInterval);
                 return;
             }
             if (!passwordFile) {
@@ -420,6 +555,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 launchAttackBtn.disabled = false;
                 launchAttackBtn.textContent = originalLaunchBtnText;
                 showUiStep('uiStep-CredentialsInput');
+                if (elapsedTimeInterval) clearInterval(elapsedTimeInterval);
                 return;
             }
             if (!targetPostUrl ||
@@ -429,24 +565,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 addLogMessage("Error: Critical form parameters missing. Please re-analyze URL.", 'fail', {status: 'error', logId: `error-params-${Date.now()}`});
                 launchAttackBtn.disabled = false;
                 launchAttackBtn.textContent = originalLaunchBtnText;
-                showUiStep('uiStep-AnalysisReview'); // Go back to review step
+                showUiStep('uiStep-AnalysisReview');
+                if (elapsedTimeInterval) clearInterval(elapsedTimeInterval);
                 return;
             }
 
-            showUiStep('uiStep-Monitor'); // Transition to monitor view *before* starting async operations that log
             addLogMessage(`Username Field: ${usernameFieldName}`, 'info', {logId: `info-userfield-${Date.now()}`});
             addLogMessage(`Password Field: ${passwordFieldName}`, 'info', {logId: `info-passfield-${Date.now()}`});
 
             let usernames = [];
             let passwords = [];
-            // Ensure HUD elements are queried based on the active step if necessary, or ensure IDs are unique
-            const currentAttemptsCountEl = document.getElementById('hud-total-attempts');
-            const currentHitsCountEl = document.getElementById('hud-hits');
-            let totalAttempts = 0;
-            let totalHits = 0;
-
-            if (currentAttemptsCountEl) currentAttemptsCountEl.textContent = totalAttempts;
-            if (currentHitsCountEl) currentHitsCountEl.textContent = totalHits;
 
             try {
                 addLogMessage(`Reading username file: ${usernameFile.name}...`, 'info', {logId: `info-read-userfile-${Date.now()}`});
@@ -502,6 +630,9 @@ document.addEventListener('DOMContentLoaded', () => {
                             if (!lastMessage.includes("All attempts finished") && !lastMessage.includes("server signal")) {
                                 addLogMessage("Stream ended. All available results processed.", "info", {logId: `complete-stream-end-${Date.now()}`});
                             }
+                             if (elapsedTimeInterval) clearInterval(elapsedTimeInterval);
+                            updateTimers();
+                            if (etaEl) etaEl.textContent = 'Done';
                             break;
                         }
                         buffer += decoder.decode(value, { stream: true });
@@ -517,17 +648,28 @@ document.addEventListener('DOMContentLoaded', () => {
                             let jsonDataString = messageBlock.substring(5).trim();
                             try {
                                 let result_item = JSON.parse(jsonDataString);
-                                const currentAttemptId = `logEntry-${totalAttempts + 1}`;
 
-                                if (result_item.status === 'complete') {
+                                if (result_item.type === 'info' && result_item.total_expected_attempts !== undefined) {
+                                    totalExpectedAttemptsForCurrentTest = parseInt(result_item.total_expected_attempts, 10);
+                                    completedAttemptsThisRun = 0;
+                                    console.log(`Total expected attempts for this run: ${totalExpectedAttemptsForCurrentTest}`);
+                                    addLogMessage(result_item.message, 'info', {logId: `info-expected-${Date.now()}`});
+                                } else if (result_item.status === 'complete') {
                                     addLogMessage(result_item.message || "All attempts finished (server signal).", "info", {logId: `complete-server-${Date.now()}`});
+                                    if (elapsedTimeInterval) clearInterval(elapsedTimeInterval);
+                                    updateTimers();
+                                    if (etaEl) etaEl.textContent = 'Done';
                                 } else {
-                                    totalAttempts++;
+                                    completedAttemptsThisRun++;
+                                    totalAttemptsForHUD++;
+
                                     if (result_item.status === 'success') {
-                                        totalHits++;
+                                        totalHitsForHUD++;
                                     }
-                                    if (currentAttemptsCountEl) currentAttemptsCountEl.textContent = totalAttempts;
-                                    if (currentHitsCountEl) currentHitsCountEl.textContent = totalHits;
+                                    if (attemptsCountEl) attemptsCountEl.textContent = totalAttemptsForHUD;
+                                    if (hitsCountEl) hitsCountEl.textContent = totalHitsForHUD;
+
+                                    const currentAttemptId = `logEntry-${totalAttemptsForHUD}`;
 
                                     const displayPassword = (result_item.password_actual || result_item.password || "").replace(/./g, '*');
                                     const clText = result_item.content_length !== undefined && result_item.content_length !== null ? result_item.content_length : 'N/A';
@@ -558,14 +700,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.error("Error during credential testing setup or API call:", error);
                 addLogMessage(`Error: ${error.message}`, 'fail', {status: 'error', logId: `error-setup-${Date.now()}`});
                 alert(`An error occurred: ${error.message}`);
-                showUiStep('uiStep-CredentialsInput'); // Revert to credential input on error
+                showUiStep('uiStep-CredentialsInput');
+                if (elapsedTimeInterval) clearInterval(elapsedTimeInterval);
             } finally {
                 launchAttackBtn.disabled = false;
                 launchAttackBtn.textContent = originalLaunchBtnText;
+                if (elapsedTimeInterval) {
+                    clearInterval(elapsedTimeInterval);
+                    updateTimers();
+                    if (etaEl && (etaEl.textContent === '--:--:--' || etaEl.textContent === 'Calculating...')) {
+                         etaEl.textContent = (completedAttemptsThisRun === totalExpectedAttemptsForCurrentTest && totalExpectedAttemptsForCurrentTest > 0) ? '00:00:00' : 'Stopped';
+                    }
+                }
             }
         });
     } else {
-        console.error('Launch Attack button (confirmAndProceedBtn) not found.');
+        console.error('Launch Attack button (launchAttackBtn) not found.');
     }
 
     // Initial UI Setup
@@ -573,6 +723,8 @@ document.addEventListener('DOMContentLoaded', () => {
        showUiStep('uiStep-TargetURL');
     }
     if (formAnalysisResultsPanel) formAnalysisResultsPanel.style.display = 'none';
-    if (step2Options) step2Options.style.display = 'none'; // Ensure advanced options are hidden
+    if (step2Options) step2Options.style.display = 'none';
 
 });
+
+[end of server/static/script.js]

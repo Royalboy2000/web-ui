@@ -559,3 +559,32 @@ body {
     clear: both;
     display: table;
 }
+
+/* --- Sort Controls for Terminal Filters --- */
+.sort-control {
+    margin-left: 5px; /* Space them out a bit from "CONTENT LENGTH" and each other */
+    cursor: pointer;
+    padding: 2px 5px; /* Add some padding to make them easier to click */
+    border-radius: 3px; /* Slightly rounded corners */
+    font-weight: bold;
+    transition: all 0.2s ease; /* Smooth transition for hover/active states */
+    user-select: none; /* Prevent text selection on click */
+}
+
+.sort-control:hover {
+    background-color: var(--primary-magenta, #FF00FF); /* Use a theme color for hover */
+    color: var(--bg-color, #0A0A0F); /* Contrast color for text on hover */
+}
+
+.sort-control.active-sort { /* If we want to indicate active sort direction */
+    background-color: var(--primary-cyan, #00FFFF);
+    color: var(--bg-color, #0A0A0F);
+    box-shadow: 0 0 5px var(--primary-cyan, #00FFFF);
+}
+
+/* Adjust existing .terminal-filters span styling if needed to align better */
+/* For example, if existing filters have padding, these should too, or vice-versa */
+/* Ensure vertical alignment if necessary */
+.terminal-filters span { /* This might affect existing filter spans too, ensure it's desired */
+    vertical-align: middle; /* Helps align text and icons/arrows if font sizes differ */
+}

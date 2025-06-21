@@ -41,6 +41,22 @@
                             <span class="btn-text">Analyze Form</span>
                             <span class="spinner" style="display: none;"></span>
                         </button>
+
+                        <p class="panel-subtitle" style="margin-top: 1.5rem; margin-bottom: 1.5rem; text-align: center; font-weight: bold;">&mdash; OR &mdash;</p>
+
+                        <div class="form-group">
+                            <label for="raw-request-input" class="form-label" style="position: static; transform: none; color: var(--text-color); font-size: 16px; margin-bottom: 8px; display:block;">
+                                Paste Full HTTP Request:
+                            </label>
+                            <span class="micro-label" style="font-size: 11px; color: var(--text-color); opacity: 0.7; margin-bottom: 8px; display: block;">(e.g., from browser DevTools 'Copy as cURL (bash)' or 'Copy as fetch (PowerShell)', then simplify to basic request)</span>
+                            <textarea id="raw-request-input" class="form-input" style="height: 150px; border: 1px solid var(--border-color); padding: 10px; line-height: 1.4; resize: vertical;" placeholder="Example:
+POST /login HTTP/1.1
+Host: example.com
+Content-Type: application/x-www-form-urlencoded
+
+username=test&password=123"></textarea>
+                        </div>
+                        <button id="parseRawRequestBtn" class="btn btn-secondary" style="width: 100%; margin-top: 0.5rem;">Parse Captured Request</button>
                     </div>
                     <div class="visualizer-panel">
                         <div class="screenshot-thumbnail">
@@ -59,6 +75,17 @@
                         <p class="panel-subtitle">Confirm or edit the detected form parameters.</p>
 
                         <div id="form-analysis-results" class="form-analysis-results-panel" style="/* display: block; ensure it's visible when parent is */ padding-top: 0; border-top: none; margin-top:0;">
+                            <!-- Display for parameters from captured request -->
+                            <div id="capturedParamsDisplay" style="margin-top: 1.5rem; display:none;">
+                                <h4 class="modal-subtitle" style="font-size: 16px; color: var(--primary-cyan); margin-bottom: 8px;">
+                                    Parameters from Captured Request:
+                                </h4>
+                                <pre id="capturedParamsText" class="modal-code-block" style="max-height: 200px; margin-bottom: 10px;"></pre>
+                                <p class="panel-subtitle" style="font-size: 12px; margin-top: 0px; opacity: 0.8;">
+                                    Review the full list of parameters above. The tool has attempted to pre-fill the fields below based on common names. Please verify and correct if necessary.
+                                </p>
+                            </div>
+
                             <h3 class="panel-subtitle" style="margin-bottom: 1.5rem; font-size: 18px; color: var(--primary-magenta);">Detected Form Parameters</h3>
                             <div class="form-group">
                                 <input type="text" id="detected-username-field" class="form-input" placeholder=" ">
@@ -176,6 +203,8 @@
                                  <span id="filter-hits">HITS</span>
                                  <span id="filter-fails">FAILS</span>
                                  <span id="filter-content-length">CONTENT LENGTH</span>
+                                 <span id="sort-cl-asc" class="sort-control" title="Sort by Content Length Ascending">▲</span>
+                                 <span id="sort-cl-desc" class="sort-control" title="Sort by Content Length Descending">▼</span>
                                  <span id="filter-response">RESPONSE</span>
                              </div>
                          </div>
