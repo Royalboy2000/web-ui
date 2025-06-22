@@ -726,5 +726,3 @@ document.addEventListener('DOMContentLoaded', () => {
     if (step2Options) step2Options.style.display = 'none';
 
 });
-
-[end of server/static/script.js]
