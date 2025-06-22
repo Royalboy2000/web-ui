@@ -7,7 +7,7 @@ import os
 import sys
 
 # Add the parent directory of 'server' to sys.path to find common_field_names
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import common_field_names
 
@@ -576,5 +576,3 @@ def test_credentials():
 
 if __name__ == '__main__':
     app.run(debug=True, port=5001)
-
-[end of server/app.py]
