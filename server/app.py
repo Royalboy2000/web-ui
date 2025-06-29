@@ -636,16 +636,22 @@ def test_credentials():
 
 
                         # C2: Check for Changed Cookies
-                        post_request_cookies = session.cookies.get_dict()
+                        # Convert both pre and post request cookie jars to simple dictionaries for comparison.
+                        # This avoids CookieConflictError that can occur with direct jar item access.
+                        pre_request_cookies_dict = pre_request_cookies.get_dict()
+                        post_request_cookies_dict = session.cookies.get_dict()
                         cookies_changed = False
-                        if len(post_request_cookies) > len(pre_request_cookies):
+
+                        if len(post_request_cookies_dict) != len(pre_request_cookies_dict):
                             cookies_changed = True
                         else:
-                            for k, v in post_request_cookies.items():
-                                if k not in pre_request_cookies or pre_request_cookies[k] != v:
+                            for k, v in post_request_cookies_dict.items():
+                                if k not in pre_request_cookies_dict or pre_request_cookies_dict[k] != v:
                                     cookies_changed = True
                                     break
+
                         if cookies_changed:
+                            app.logger.info(f"SSE stream: Cookies changed for user {username_attempt} (pass: ****). Before: {len(pre_request_cookies_dict)} keys, After: {len(post_request_cookies_dict)} keys. Pre: {pre_request_cookies_dict}, Post: {post_request_cookies_dict}")
                             login_score += 25
                             positive_indicators.append("Session cookies were set or changed")
 

@@ -478,9 +478,23 @@ document.addEventListener('DOMContentLoaded', () => {
                             modalPositiveIndicators.innerHTML = ''; // Clear previous
                             if (details.analysis.positive_indicators && details.analysis.positive_indicators.length > 0) {
                                 const ul = document.createElement('ul');
-                                details.analysis.positive_indicators.forEach(item => {
+                                ul.className = 'indicator-list';
+                                details.analysis.positive_indicators.forEach(itemText => {
                                     const li = document.createElement('li');
-                                    li.textContent = item;
+                                    li.className = 'indicator-item positive-item';
+
+                                    const iconSpan = document.createElement('span');
+                                    iconSpan.className = 'indicator-icon';
+                                    // Unicode check mark, fallback if FontAwesome isn't loaded/preferred for simplicity here
+                                    // For FontAwesome: iconSpan.innerHTML = '<i class="fas fa-check-circle"></i> ';
+                                    iconSpan.textContent = '✔ '; // Simple check
+
+                                    const textSpan = document.createElement('span');
+                                    textSpan.className = 'indicator-text';
+                                    textSpan.textContent = itemText;
+
+                                    li.appendChild(iconSpan);
+                                    li.appendChild(textSpan);
                                     ul.appendChild(li);
                                 });
                                 modalPositiveIndicators.appendChild(ul);
@@ -493,9 +507,23 @@ document.addEventListener('DOMContentLoaded', () => {
                             modalNegativeIndicators.innerHTML = ''; // Clear previous
                             if (details.analysis.negative_indicators && details.analysis.negative_indicators.length > 0) {
                                 const ul = document.createElement('ul');
-                                details.analysis.negative_indicators.forEach(item => {
+                                ul.className = 'indicator-list';
+                                details.analysis.negative_indicators.forEach(itemText => {
                                     const li = document.createElement('li');
-                                    li.textContent = item;
+                                    li.className = 'indicator-item negative-item';
+
+                                    const iconSpan = document.createElement('span');
+                                    iconSpan.className = 'indicator-icon';
+                                    // Unicode cross mark
+                                    // For FontAwesome: iconSpan.innerHTML = '<i class="fas fa-times-circle"></i> ';
+                                    iconSpan.textContent = '✖ '; // Simple cross
+
+                                    const textSpan = document.createElement('span');
+                                    textSpan.className = 'indicator-text';
+                                    textSpan.textContent = itemText;
+
+                                    li.appendChild(iconSpan);
+                                    li.appendChild(textSpan);
                                     ul.appendChild(li);
                                 });
                                 modalNegativeIndicators.appendChild(ul);

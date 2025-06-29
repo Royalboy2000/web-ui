@@ -588,3 +588,55 @@ body {
 .terminal-filters span { /* This might affect existing filter spans too, ensure it's desired */
     vertical-align: middle; /* Helps align text and icons/arrows if font sizes differ */
 }
+
+/* Styles for Login Analysis Indicators in Modal */
+.indicator-list {
+    list-style-type: none; /* Remove default bullet points */
+    padding-left: 0; /* Remove default padding */
+    margin-top: 5px;
+    margin-bottom: 0; /* Reset bottom margin for lists inside styled divs */
+}
+
+.indicator-item {
+    padding: 8px 5px; /* Vertical padding, little horizontal for text */
+    border-bottom: 1px solid var(--border-color-light, rgba(255,255,255,0.1)); /* Subtle separator */
+    display: flex; /* Align icon and text nicely */
+    align-items: flex-start; /* Align items to the start of the flex line */
+    line-height: 1.5; /* Improve readability */
+}
+
+.indicator-item:last-child {
+    border-bottom: none; /* No border for the last item */
+}
+
+.indicator-icon {
+    margin-right: 10px; /* Space between icon and text */
+    font-size: 1.1em; /* Slightly larger icon */
+    flex-shrink: 0; /* Prevent icon from shrinking */
+    width: 20px; /* Ensure icons align well if using different unicode chars */
+    text-align: center;
+}
+
+.indicator-text {
+    flex-grow: 1; /* Allow text to take remaining space */
+    word-break: break-word; /* Prevent long text from overflowing */
+    color: var(--text-color);
+}
+
+.positive-item .indicator-icon {
+    color: var(--success-lime, #A5FF00); /* Green for positive indicators */
+}
+
+.negative-item .indicator-icon {
+    color: var(--error-orange, #FF4500); /* Orange/Red for negative indicators */
+}
+
+/* Ensure the container for these lists in the modal looks good */
+#modalPositiveIndicators,
+#modalNegativeIndicators {
+    background-color: rgba(20, 20, 30, 0.5); /* Slightly different background for emphasis */
+    border: 1px solid var(--border-color-light, rgba(255,255,255,0.15));
+    border-radius: 4px;
+    padding: 5px 10px; /* Reduced padding as items have padding */
+    margin-top: 8px; /* Space from the subtitle */
+}
