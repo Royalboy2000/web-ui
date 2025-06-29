@@ -118,26 +118,48 @@ username=test&password=123"></textarea>
                 <div class="panel-container">
                     <div class="glass-panel form-panel">
                         <h1 class="panel-title">Step 3: Provide Credentials</h1>
-                        <p class="panel-subtitle">Upload username and password lists.</p>
+                        <p class="panel-subtitle">Provide credentials for testing.</p>
+
+                        <p class="panel-subtitle" style="font-size: 0.9em; margin-bottom: 1rem; text-align: center;">
+                            You can either provide a single file with username:password pairs (recommended for multiple accounts),
+                            OR use the individual username and password list inputs below.
+                            If a "Username:Password Combo File" is provided, it will take precedence.
+                        </p>
 
                         <div class="form-group">
-                            <label class="micro-label">Username/Email List File</label>
+                            <label class="micro-label">Username:Password Combo File (Optional)</label>
                             <div class="drop-zone">
-                                <i class="fa-solid fa-users"></i>
-                                <p>Drag & Drop .txt or .csv username/email list</p>
+                                <i class="fa-solid fa-file-lines"></i>
+                                <p>Drag & Drop .txt or .csv file (e.g., user:pass per line)</p>
+                                <input type="file" id="auth-pairs-upload" accept=".txt,.csv" style="display: none;">
+                                <button type="button" id="browse-auth-pairs-btn" class="btn btn-secondary">Browse Combo File</button>
+                                <p id="selected-auth-pairs-file-name" class="selected-file-display">No combo file selected.</p>
+                            </div>
+                        </div>
+
+                        <hr class="form-divider">
+                        <p class="panel-subtitle" style="text-align: center; margin-top:1rem; margin-bottom:1rem; font-size: 0.9em;">&mdash; OR (if no combo file provided) &mdash;</p>
+
+
+                        <div class="form-group">
+                            <label class="micro-label">Single Username/Email (or list via file)</label>
+                            <div class="drop-zone">
+                                <i class="fa-solid fa-user"></i> <!-- Changed icon -->
+                                <p>Drag & Drop .txt username list or type single username below</p>
                                 <input type="file" id="username-list-upload" accept=".txt,.csv" style="display: none;">
-                                <button type="button" id="browse-username-files-btn" class="btn btn-secondary">Browse Username Files</button>
-                                <p id="selected-username-file-name" class="selected-file-display">No file selected.</p>
+                                <button type="button" id="browse-username-files-btn" class="btn btn-secondary">Browse Username File</button>
+                                <p id="selected-username-file-name" class="selected-file-display">No username file selected.</p>
+                                <input type="text" id="single-username-input" class="form-input" placeholder="Or type single username/email here" style="margin-top: 10px;">
                             </div>
                         </div>
 
                         <div class="form-group">
-                             <label class="micro-label">Password List</label>
+                             <label class="micro-label">Password List (for single/list username)</label>
                              <div class="drop-zone">
-                                 <i class="fa-solid fa-microchip"></i>
-                                 <p>Drag & Drop .txt or .csv file</p>
+                                 <i class="fa-solid fa-key"></i> <!-- Changed icon -->
+                                 <p>Drag & Drop .txt or .csv password list</p>
                                  <input type="file" id="password-list-upload" accept=".txt,.csv" style="display: none;">
-                                 <button type="button" id="browse-files-btn" class="btn btn-secondary">Browse Password Files</button>
+                                 <button type="button" id="browse-password-files-btn" class="btn btn-secondary">Browse Password Files</button> <!-- Changed ID -->
                                  <p id="selected-password-file-name" class="selected-file-display">No password file selected.</p>
                              </div>
                         </div>

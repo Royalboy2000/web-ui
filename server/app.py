@@ -6,6 +6,7 @@ import json
 import os
 import sys
 import re
+# Removed argparse import
 
 # Add the parent directory of 'server' to sys.path to find common_field_names
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -13,6 +14,41 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import common_field_names
 
 app = Flask(__name__, static_folder='static', template_folder='templates')
+
+# Removed global variable AUTH_FILE_PATH
+
+def parse_auth_content(file_content_string):
+    """
+    Parses a string containing credentials (e.g., from an uploaded file).
+    Each line in the string should be in a format like username:password or email:password.
+    It tries to intelligently split lines with multiple colons,
+    assuming the last part is the password and the second to last is the username/email.
+    """
+    credentials = []
+    if not file_content_string:
+        app.logger.warning("Auth content string is empty or not provided.")
+        return credentials
+
+    lines = file_content_string.splitlines()
+    for i, line in enumerate(lines):
+        line = line.strip()
+        if not line or line.startswith('#'):  # Skip empty lines and comments
+            continue
+
+        parts = line.split(':')
+        if len(parts) >= 2:
+            # Assume password is the last part, username/email is second to last.
+            password = parts[-1]
+            username = parts[-2]
+            if username and password: # Ensure they are not empty
+                credentials.append((username, password))
+            else:
+                app.logger.warning(f"Auth content, line {i+1}: Skipped due to empty username or password after parsing.")
+        else:
+            app.logger.warning(f"Auth content, line {i+1}: Malformed line, expected at least one ':' separator. Line: '{line[:100]}...'")
+
+    app.logger.info(f"Successfully parsed {len(credentials)} credential pairs from provided content string.")
+    return credentials
 
 @app.route('/')
 def serve_index():
@@ -388,15 +424,40 @@ def test_credentials():
         csrf_token_name = data.get('csrf_token_name')
         csrf_token_value = data.get('csrf_token_value')
         initial_cookies = data.get('cookies', {})
+        auth_file_content = data.get('auth_file_content') # Get new field from payload
 
         def event_stream():
-            app.logger.info(f"SSE stream: Starting for {len(username_list)} users and {len(password_list)} passwords (paired).")
-            num_pairs_to_test = min(len(username_list), len(password_list))
+            source_usernames = []
+            source_passwords = []
+            credential_source_message = ""
+
+            if auth_file_content:
+                app.logger.info("Auth file content provided in payload. Attempting to parse.")
+                parsed_credentials = parse_auth_content(auth_file_content)
+                if parsed_credentials:
+                    source_usernames = [cred[0] for cred in parsed_credentials]
+                    source_passwords = [cred[1] for cred in parsed_credentials]
+                    credential_source_message = f"Using {len(source_usernames)} credential pairs from uploaded auth content."
+                    app.logger.info(credential_source_message)
+                else:
+                    app.logger.warning("Auth file content was provided but yielded no credentials. Falling back to individual username/password lists from payload.")
+                    source_usernames = username_list # username_list from outer scope (data['username_list'])
+                    source_passwords = password_list # password_list from outer scope (data['password_list'])
+                    credential_source_message = f"Uploaded auth content empty/invalid. Using {len(source_usernames)} credential pairs from individual payload lists."
+                    app.logger.info(credential_source_message)
+            else:
+                source_usernames = username_list # username_list from outer scope
+                source_passwords = password_list # password_list from outer scope
+                credential_source_message = f"No auth file content provided. Using {len(source_usernames)} credential pairs from individual payload lists."
+                app.logger.info(credential_source_message)
+
+            app.logger.info(f"SSE stream: Finalizing credential source. To test: {len(source_usernames)} usernames, {len(source_passwords)} passwords. Message: {credential_source_message}")
+            num_pairs_to_test = min(len(source_usernames), len(source_passwords))
 
             initial_info = {
                 "type": "info",
                 "total_expected_attempts": num_pairs_to_test,
-                "message": f"Test run initiated. Expecting {num_pairs_to_test} pairs to be tested."
+                "message": f"Test run initiated. {credential_source_message} Expecting {num_pairs_to_test} pairs to be tested."
             }
             app.logger.info(f"SSE stream: Sending initial info event: {initial_info}")
             yield f"data: {json.dumps(initial_info)}\n\n"
@@ -432,8 +493,8 @@ def test_credentials():
                     return
 
                 for i in range(num_pairs_to_test):
-                    username_attempt = username_list[i]
-                    password_attempt = password_list[i]
+                    username_attempt = source_usernames[i]
+                    password_attempt = source_passwords[i]
 
                     app.logger.info(f"SSE stream: Attempting pair {i+1}/{num_pairs_to_test}: User '{username_attempt}' with Password '********'")
 
@@ -868,4 +929,5 @@ def test_credentials():
         return jsonify({"error": f"An unexpected server error occurred before streaming could start."}), 500
 
 if __name__ == '__main__':
+    # Removed argparse logic for --auth-file
     app.run(debug=True, port=5001)

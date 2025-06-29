@@ -25,12 +25,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const parseRawRequestBtn = document.getElementById('parseRawRequestBtn'); // New button
 
     // File inputs
+    const authPairsUploadInput = document.getElementById('auth-pairs-upload');
+    const browseAuthPairsButton = document.getElementById('browse-auth-pairs-btn');
+    const selectedAuthPairsFileNameDisplay = document.getElementById('selected-auth-pairs-file-name');
+
     const usernameListInput = document.getElementById('username-list-upload');
     const browseUsernameFilesButton = document.getElementById('browse-username-files-btn');
     const selectedUsernameFileNameDisplay = document.getElementById('selected-username-file-name');
+    const singleUsernameInput = document.getElementById('single-username-input');
+
 
     const passwordListInput = document.getElementById('password-list-upload');
-    const browsePasswordFilesButton = document.getElementById('browse-files-btn');
+    const browsePasswordFilesButton = document.getElementById('browse-password-files-btn'); // Corrected ID
     const selectedPasswordFileNameDisplay = document.getElementById('selected-password-file-name');
 
     // Form analysis results panel and its fields
@@ -138,8 +144,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    setupFileInputListener(usernameListInput, selectedUsernameFileNameDisplay, 'No file selected.');
+    setupFileInputListener(usernameListInput, selectedUsernameFileNameDisplay, 'No username file selected.');
     setupFileInputListener(passwordListInput, selectedPasswordFileNameDisplay, 'No password file selected.');
+    setupFileInputListener(authPairsUploadInput, selectedAuthPairsFileNameDisplay, 'No combo file selected.');
+
+    if(browseAuthPairsButton && authPairsUploadInput){
+        browseAuthPairsButton.addEventListener('click', () => authPairsUploadInput.click());
+    } else { console.error('Auth Pairs browse button or file input not found.'); }
+
 
     if (analyzeFormButton) {
         const originalButtonText = analyzeFormButton.querySelector('.btn-text').textContent;
@@ -581,7 +593,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if (attemptsCountEl) attemptsCountEl.textContent = totalAttemptsForHUD;
             if (hitsCountEl) hitsCountEl.textContent = totalHitsForHUD;
 
+            const authPairsFile = authPairsUploadInput.files.length > 0 ? authPairsUploadInput.files[0] : null;
             const usernameFile = usernameListInput.files.length > 0 ? usernameListInput.files[0] : null;
+            const singleUser = singleUsernameInput ? singleUsernameInput.value.trim() : '';
             const passwordFile = passwordListInput.files.length > 0 ? passwordListInput.files[0] : null;
             const targetPostUrl = detectedPostUrlInput ? detectedPostUrlInput.value.trim() : '';
             const usernameFieldName = detectedUsernameFieldInput ? detectedUsernameFieldInput.value.trim() : '';
@@ -598,47 +612,53 @@ document.addEventListener('DOMContentLoaded', () => {
 
             addLogMessage(`Initiating login attempts against ${targetPostUrl}...`, 'info', {logId: `init-log-${Date.now()}`});
 
-            if (!usernameFile) {
-                alert("Please select a username/email list file.");
-                addLogMessage("Error: Username/Email list file not selected.", 'fail', {status: 'error', logId: `error-no-userfile-${Date.now()}`});
-                launchAttackBtn.disabled = false;
-                launchAttackBtn.textContent = originalLaunchBtnText;
-                showUiStep('uiStep-CredentialsInput');
-                if (elapsedTimeInterval) clearInterval(elapsedTimeInterval);
-                return;
+            let useAuthPairsFile = false;
+            if (authPairsFile) {
+                if (authPairsFile.type !== 'text/plain' && authPairsFile.type !== 'text/csv') {
+                    alert("Invalid Auth Pairs file type. Please upload a .txt or .csv file.");
+                    if(authPairsUploadInput) authPairsUploadInput.value = '';
+                    if(selectedAuthPairsFileNameDisplay) selectedAuthPairsFileNameDisplay.textContent = 'No combo file selected.';
+                    addLogMessage("Error: Invalid Auth Pairs file type.", 'fail', {status: 'error', logId: `error-authfile-type-${Date.now()}`});
+                    launchAttackBtn.disabled = false; launchAttackBtn.textContent = originalLaunchBtnText; showUiStep('uiStep-CredentialsInput'); if (elapsedTimeInterval) clearInterval(elapsedTimeInterval); return;
+                }
+                if (authPairsFile.size > 2 * 1024 * 1024) { // Allow slightly larger for combo files
+                    alert("Auth Pairs file is too large. Maximum size is 2MB.");
+                    addLogMessage("Error: Auth Pairs file too large.", 'fail', {status: 'error', logId: `error-authfile-size-${Date.now()}`});
+                    launchAttackBtn.disabled = false; launchAttackBtn.textContent = originalLaunchBtnText; showUiStep('uiStep-CredentialsInput'); if (elapsedTimeInterval) clearInterval(elapsedTimeInterval); return;
+                }
+                useAuthPairsFile = true;
+                addLogMessage(`Using Username:Password Combo File: ${authPairsFile.name}`, 'info', {logId: `info-use-authfile-${Date.now()}`});
+            } else {
+                // Validate individual username/password inputs only if auth pairs file is not used
+                if (!usernameFile && !singleUser) {
+                    alert("Please select a username/email list file OR type a single username/email.");
+                    addLogMessage("Error: No username source provided (file or single input).", 'fail', {status: 'error', logId: `error-no-user-source-${Date.now()}`});
+                    launchAttackBtn.disabled = false; launchAttackBtn.textContent = originalLaunchBtnText; showUiStep('uiStep-CredentialsInput'); if (elapsedTimeInterval) clearInterval(elapsedTimeInterval); return;
+                }
+                if (usernameFile) {
+                    if (usernameFile.type !== 'text/plain' && usernameFile.type !== 'text/csv') {
+                        alert("Invalid username file type. Please upload a .txt or .csv file.");
+                        if(usernameListInput) usernameListInput.value = '';
+                        if(selectedUsernameFileNameDisplay) selectedUsernameFileNameDisplay.textContent = 'No username file selected.';
+                        addLogMessage("Error: Invalid username file type.", 'fail', {status: 'error', logId: `error-userfile-type-${Date.now()}`});
+                        launchAttackBtn.disabled = false; launchAttackBtn.textContent = originalLaunchBtnText; showUiStep('uiStep-CredentialsInput'); if (elapsedTimeInterval) clearInterval(elapsedTimeInterval); return;
+                    }
+                    if (usernameFile.size > 1 * 1024 * 1024) {
+                        alert("Username file is too large. Maximum size is 1MB.");
+                        addLogMessage("Error: Username file too large.", 'fail', {status: 'error', logId: `error-userfile-size-${Date.now()}`});
+                        launchAttackBtn.disabled = false; launchAttackBtn.textContent = originalLaunchBtnText; showUiStep('uiStep-CredentialsInput'); if (elapsedTimeInterval) clearInterval(elapsedTimeInterval); return;
+                    }
+                }
+                if (!passwordFile) {
+                    alert("Password file not selected. Please select a password file.");
+                    addLogMessage("Error: Password file not selected.", 'fail', {status: 'error', logId: `error-nopassfile-${Date.now()}`});
+                    launchAttackBtn.disabled = false; launchAttackBtn.textContent = originalLaunchBtnText; showUiStep('uiStep-CredentialsInput'); if (elapsedTimeInterval) clearInterval(elapsedTimeInterval); return;
+                }
+                 addLogMessage(usernameFile ? `Using Username File: ${usernameFile.name}` : `Using Single Username: ${singleUser}`, 'info', {logId: `info-user-source-${Date.now()}`});
+                 addLogMessage(`Using Password File: ${passwordFile.name}`, 'info', {logId: `info-pass-source-${Date.now()}`});
             }
-            if (usernameFile.type !== 'text/plain' && usernameFile.type !== 'text/csv') {
-                alert("Invalid username file type. Please upload a .txt or .csv file.");
-                if(usernameListInput) usernameListInput.value = '';
-                if(selectedUsernameFileNameDisplay) selectedUsernameFileNameDisplay.textContent = 'No file selected.';
-                addLogMessage("Error: Invalid username file type.", 'fail', {status: 'error', logId: `error-userfile-type-${Date.now()}`});
-                launchAttackBtn.disabled = false;
-                launchAttackBtn.textContent = originalLaunchBtnText;
-                showUiStep('uiStep-CredentialsInput');
-                if (elapsedTimeInterval) clearInterval(elapsedTimeInterval);
-                return;
-            }
-            if (usernameFile.size > 1 * 1024 * 1024) {
-                alert("Username file is too large. Maximum size is 1MB.");
-                addLogMessage("Error: Username file too large.", 'fail', {status: 'error', logId: `error-userfile-size-${Date.now()}`});
-                launchAttackBtn.disabled = false;
-                launchAttackBtn.textContent = originalLaunchBtnText;
-                showUiStep('uiStep-CredentialsInput');
-                if (elapsedTimeInterval) clearInterval(elapsedTimeInterval);
-                return;
-            }
-            if (!passwordFile) {
-                alert("Password file not selected. Please select a password file.");
-                addLogMessage("Error: Password file not selected.", 'fail', {status: 'error', logId: `error-nopassfile-${Date.now()}`});
-                launchAttackBtn.disabled = false;
-                launchAttackBtn.textContent = originalLaunchBtnText;
-                showUiStep('uiStep-CredentialsInput');
-                if (elapsedTimeInterval) clearInterval(elapsedTimeInterval);
-                return;
-            }
-            if (!targetPostUrl ||
-                !passwordFieldName || passwordFieldName === 'Could not auto-detect' ||
-                !usernameFieldName || usernameFieldName === 'Could not auto-detect') {
+
+            if (!targetPostUrl || !passwordFieldName || passwordFieldName === 'Could not auto-detect' || !usernameFieldName || usernameFieldName === 'Could not auto-detect') {
                 alert("Critical form parameters (POST URL, Username Field Name, or Password Field Name) are missing or were not detected properly. Please ensure form analysis (Step 1 & 2) was successful and confirm the detected values.");
                 addLogMessage("Error: Critical form parameters missing. Please re-analyze URL.", 'fail', {status: 'error', logId: `error-params-${Date.now()}`});
                 launchAttackBtn.disabled = false;
@@ -651,18 +671,12 @@ document.addEventListener('DOMContentLoaded', () => {
             addLogMessage(`Username Field: ${usernameFieldName}`, 'info', {logId: `info-userfield-${Date.now()}`});
             addLogMessage(`Password Field: ${passwordFieldName}`, 'info', {logId: `info-passfield-${Date.now()}`});
 
-            let usernames = [];
-            let passwords = [];
+            let usernames_from_file = [];
+            let passwords_from_file = [];
+            let auth_pairs_content_string = null;
+
 
             try {
-                addLogMessage(`Reading username file: ${usernameFile.name}...`, 'info', {logId: `info-read-userfile-${Date.now()}`});
-                usernames = await readUsernamesFromFile(usernameFile);
-                addLogMessage(`Successfully read ${usernames.length} username(s).`, 'info', {logId: `info-read-userfile-done-${Date.now()}`});
-
-                addLogMessage(`Reading password file: ${passwordFile.name}...`, 'info', {logId: `info-read-passfile-${Date.now()}`});
-                passwords = await readPasswordsFromFile(passwordFile);
-                addLogMessage(`Successfully read ${passwords.length} password(s). Starting tests...`, 'info', {logId: `info-read-passfile-done-${Date.now()}`});
-
                 const payload = {
                     target_post_url: targetPostUrl,
                     username_field_name: usernameFieldName,
@@ -671,9 +685,34 @@ document.addEventListener('DOMContentLoaded', () => {
                     csrf_token_name: window.attackContext.csrfTokenName,
                     csrf_token_value: window.attackContext.csrfTokenValue,
                     cookies: window.attackContext.initialCookies,
-                    username_list: usernames,
-                    password_list: passwords
+                    username_list: [], // Will be populated or overridden
+                    password_list: [], // Will be populated or overridden
+                    auth_file_content: null // New field
                 };
+
+                if (useAuthPairsFile) {
+                    addLogMessage(`Reading Auth Pairs file: ${authPairsFile.name}...`, 'info', {logId: `info-read-authpairs-${Date.now()}`});
+                    auth_pairs_content_string = await readPasswordsFromFile(authPairsFile); // Re-use readPasswordsFromFile as it just reads lines
+                    payload.auth_file_content = auth_pairs_content_string;
+                    // No need to populate username_list/password_list if auth_file_content is sent
+                    addLogMessage(`Auth Pairs file content prepared.`, 'info', {logId: `info-authpairs-done-${Date.now()}`});
+                } else {
+                    if (usernameFile) {
+                        addLogMessage(`Reading username file: ${usernameFile.name}...`, 'info', {logId: `info-read-userfile-${Date.now()}`});
+                        usernames_from_file = await readUsernamesFromFile(usernameFile);
+                        payload.username_list = usernames_from_file;
+                        addLogMessage(`Successfully read ${usernames_from_file.length} username(s).`, 'info', {logId: `info-read-userfile-done-${Date.now()}`});
+                    } else if (singleUser) {
+                        payload.username_list = [singleUser];
+                         addLogMessage(`Using single username: ${singleUser}`, 'info', {logId: `info-single-user-${Date.now()}`});
+                    }
+
+                    addLogMessage(`Reading password file: ${passwordFile.name}...`, 'info', {logId: `info-read-passfile-${Date.now()}`});
+                    passwords_from_file = await readPasswordsFromFile(passwordFile);
+                    payload.password_list = passwords_from_file;
+                    addLogMessage(`Successfully read ${passwords_from_file.length} password(s). Starting tests...`, 'info', {logId: `info-read-passfile-done-${Date.now()}`});
+                }
+
 
                 const response = await fetch(API_BASE_URL + '/test_credentials', {
                     method: 'POST',

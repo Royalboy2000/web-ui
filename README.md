@@ -67,6 +67,7 @@ The application consists of two main parts:
     ```bash
     python app.py
     ```
+    <!-- Removed --auth-file CLI documentation -->
 3.  The server will typically start on `http://127.0.0.1:5001`.
 4.  **Open your web browser and go to `http://127.0.0.1:5001`** to access the Predator application.
 
@@ -74,16 +75,35 @@ The application consists of two main parts:
 
 The application guides you through a multi-step process:
 
-**Step 1: Define Target and Credentials**
+**Step 1: Analyze Target** (Formerly "Define Target and Credentials")
+1.  **Login URL Input**: Enter the full URL of the login page (e.g., `https://example.com/login`).
+    *   Click "Analyze Form" to automatically detect form parameters.
+2.  **Raw HTTP Request Input (Alternative)**:
+    *   Paste a full raw HTTP login request.
+    *   Click "Parse Captured Request" to extract parameters.
+3.  Review the "Detected Form Parameters" (POST URL, Username Field, Password Field). Edit if necessary.
+4.  Click "Proceed to Credentials".
 
-1.  **Username/Email**: Enter the single username or email you want to test.
-2.  **Password List**: Click "Browse Password Files" to upload a `.txt` or `.csv` file containing one password per line. The selected file name will be displayed.
-3.  **Login URL**: Enter the full URL of the login page you want to analyze (e.g., `https://example.com/login`).
-4.  **Analyze Form**: Click the "Analyze Form" button.
-    *   The application will send the URL to the backend for analysis.
-    *   The "Detected Form Parameters" section will populate with the information found (Form POST URL, Username Field Name, Password Field Name). Review these carefully. You can manually edit them if the auto-detection is not perfect.
+**Step 2: Provide Credentials & Launch** (Formerly Step 3, merged with old Step 2)
 
-**Step 2: Confirm and Proceed (Initiate Testing)**
+This step allows two main ways to provide credentials:
+
+*   **Option A: Username:Password Combo File (Recommended for multiple accounts)**
+    1.  Use the "Browse Combo File" button to upload a `.txt` or `.csv` file.
+    2.  **Format**: Each line in this file should contain a username/email and password, separated by a colon (e.g., `user1:pass123` or `data:info:user2@example.com:securepass`). The tool will take the last part as the password and the second-to-last part as the username/email. Lines starting with `#` are ignored.
+    3.  If a valid combo file is provided, the "Single Username/Email" and "Password List" inputs below it will be **ignored**.
+
+*   **Option B: Individual Username and Password List** (Use if no combo file is provided)
+    1.  **Single Username/Email (or list via file)**:
+        *   Type a single username/email directly into the text field.
+        *   OR, click "Browse Username File" to upload a `.txt` file with one username/email per line.
+    2.  **Password List (for single/list username)**:
+        *   Click "Browse Password Files" to upload a `.txt` or `.csv` file containing one password per line. This list will be tested against the username(s) provided above.
+
+Once credentials are set up using either Option A or B:
+*   Click the "Launch Attack" button.
+
+**Step 3: Monitor Attack** (Formerly Step 4)
 
 1.  Once you are satisfied with the detected (or manually adjusted) form parameters, click the "Confirm and Proceed" button.
 2.  This will trigger the credential testing process. The UI will switch to the "Launch & Monitor" view (Step 3).
