@@ -692,10 +692,27 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (useAuthPairsFile) {
                     addLogMessage(`Reading Auth Pairs file: ${authPairsFile.name}...`, 'info', {logId: `info-read-authpairs-${Date.now()}`});
-                    auth_pairs_content_string = await readPasswordsFromFile(authPairsFile); // Re-use readPasswordsFromFile as it just reads lines
-                    payload.auth_file_content = auth_pairs_content_string;
-                    // No need to populate username_list/password_list if auth_file_content is sent
-                    addLogMessage(`Auth Pairs file content prepared.`, 'info', {logId: `info-authpairs-done-${Date.now()}`});
+                    try {
+                        const rawFileString = await readFileContentAsString(authPairsFile);
+                        if (typeof rawFileString === 'string') {
+                            payload.auth_file_content = rawFileString;
+                        } else {
+                            // This case should ideally not be hit if readFileContentAsString works as expected
+                            // but as a fallback, if it's an array (like old readPasswordsFromFile returned)
+                            console.warn('readFileContentAsString did not return a string for authPairsFile; type was:', typeof rawFileString, '. Attempting to join if array.');
+                            if(Array.isArray(rawFileString)) {
+                                payload.auth_file_content = rawFileString.join('\n');
+                            } else {
+                                console.error('readFileContentAsString returned non-string, non-array type for authPairsFile. Setting auth_file_content to empty string.');
+                                payload.auth_file_content = "";
+                                throw new Error('Failed to read auth pairs file as string.');
+                            }
+                        }
+                        addLogMessage(`Auth Pairs file content prepared.`, 'info', {logId: `info-authpairs-done-${Date.now()}`});
+                    } catch (e) {
+                        addLogMessage(`Error processing Auth Pairs file: ${e.message}`, 'fail', {status: 'error', logId: `error-authprocess-${Date.now()}`});
+                        launchAttackBtn.disabled = false; launchAttackBtn.textContent = originalLaunchBtnText; showUiStep('uiStep-CredentialsInput'); if (elapsedTimeInterval) clearInterval(elapsedTimeInterval); return;
+                    }
                 } else {
                     if (usernameFile) {
                         addLogMessage(`Reading username file: ${usernameFile.name}...`, 'info', {logId: `info-read-userfile-${Date.now()}`});
