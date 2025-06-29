@@ -403,33 +403,30 @@ def test_credentials():
         target_post_url = data['target_post_url']
         username_field_name = data['username_field_name']
         password_field_name = data['password_field_name']
-        username_list = data['username_list']
-        password_list = data['password_list']
+        username_list_payload = data['username_list'] # Renamed to avoid conflict with function-scoped var
+        password_list_payload = data['password_list'] # Renamed
         form_method = data.get('form_method', 'POST').upper()
+        auth_file_content = data.get('auth_file_content')
 
-        if not isinstance(username_list, list):
-            app.logger.warning(f"'username_list' is not a list in /test_credentials from {request.remote_addr}")
-            return jsonify({"error": "'username_list' must be a list."}), 400
-        if not username_list:
-            app.logger.warning(f"'username_list' is empty in /test_credentials from {request.remote_addr}")
-            return jsonify({"error": "'username_list' cannot be empty."}), 400
-
-        if not isinstance(password_list, list):
-            app.logger.warning(f"'password_list' is not a list in /test_credentials from {request.remote_addr}")
-            return jsonify({"error": "'password_list' must be a list."}), 400
-        if not password_list:
-            app.logger.warning(f"Received request with empty password_list from {request.remote_addr}.")
-            return jsonify({"error": "'password_list' cannot be empty."}), 400
+        # Defer strict validation of username_list_payload and password_list_payload
+        # until after we check auth_file_content.
+        # Basic type checks can remain if desired, but emptiness check is key.
+        if not isinstance(username_list_payload, list):
+            app.logger.warning(f"'username_list' from payload is not a list in /test_credentials from {request.remote_addr}")
+            return jsonify({"error": "'username_list' (from payload) must be a list."}), 400
+        if not isinstance(password_list_payload, list):
+            app.logger.warning(f"'password_list' from payload is not a list in /test_credentials from {request.remote_addr}")
+            return jsonify({"error": "'password_list' (from payload) must be a list."}), 400
 
         csrf_token_name = data.get('csrf_token_name')
         csrf_token_value = data.get('csrf_token_value')
         initial_cookies = data.get('cookies', {})
-        auth_file_content = data.get('auth_file_content') # Get new field from payload
 
         def event_stream():
             source_usernames = []
             source_passwords = []
             credential_source_message = ""
+            has_valid_auth_content = False
 
             if auth_file_content:
                 app.logger.info("Auth file content provided in payload. Attempting to parse.")
@@ -438,21 +435,37 @@ def test_credentials():
                     source_usernames = [cred[0] for cred in parsed_credentials]
                     source_passwords = [cred[1] for cred in parsed_credentials]
                     credential_source_message = f"Using {len(source_usernames)} credential pairs from uploaded auth content."
-                    app.logger.info(credential_source_message)
+                    has_valid_auth_content = True
                 else:
-                    app.logger.warning("Auth file content was provided but yielded no credentials. Falling back to individual username/password lists from payload.")
-                    source_usernames = username_list # username_list from outer scope (data['username_list'])
-                    source_passwords = password_list # password_list from outer scope (data['password_list'])
-                    credential_source_message = f"Uploaded auth content empty/invalid. Using {len(source_usernames)} credential pairs from individual payload lists."
-                    app.logger.info(credential_source_message)
-            else:
-                source_usernames = username_list # username_list from outer scope
-                source_passwords = password_list # password_list from outer scope
-                credential_source_message = f"No auth file content provided. Using {len(source_usernames)} credential pairs from individual payload lists."
-                app.logger.info(credential_source_message)
+                    app.logger.warning("Auth file content provided but was empty/invalid.")
+                    # Message will indicate fallback below if this path is taken
 
-            app.logger.info(f"SSE stream: Finalizing credential source. To test: {len(source_usernames)} usernames, {len(source_passwords)} passwords. Message: {credential_source_message}")
+            if not has_valid_auth_content:
+                source_usernames = username_list_payload
+                source_passwords = password_list_payload
+
+                if auth_file_content: # Implies it was present but invalid/empty from parse_auth_content
+                    credential_source_message = f"Uploaded auth content empty/invalid. Using {len(source_usernames)} credential pairs from individual payload lists."
+                else: # No auth_file_content was ever provided
+                    credential_source_message = f"No auth file content provided. Using {len(source_usernames)} credential pairs from individual payload lists."
+
+                # If, after all this, both lists are empty, it means no usable credentials from any source.
+                if not source_usernames and not source_passwords:
+                    credential_source_message = "No valid credentials provided from any source."
+
+            # Logging without request.remote_addr in the loop for these specific messages
+            if not has_valid_auth_content: # Only log these if we fell back to payload lists
+                if not username_list_payload:
+                    app.logger.warning("Username list (from payload) is empty.")
+                if not password_list_payload:
+                    app.logger.warning("Password list (from payload) is empty.")
+
+            app.logger.info(f"Final credential source message: {credential_source_message}")
             num_pairs_to_test = min(len(source_usernames), len(source_passwords))
+
+            # If after all checks, there are no pairs to test (e.g. one list is empty),
+            # the existing num_pairs_to_test == 0 check in the stream will handle it.
+            # We only error out early if basic payload structure is wrong (e.g. username_list not a list).
 
             initial_info = {
                 "type": "info",

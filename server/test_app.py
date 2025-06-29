@@ -180,5 +180,37 @@ class TestCredentialsEndpointSourceLogic(unittest.TestCase):
             self.assertIn('"password_actual": "payload_pass1"', stream_content)
             self.assertNotIn("file_user1", stream_content)
 
+    @patch('server.app.requests.Session.post')
+    @patch('server.app.requests.Session.get')
+    def test_no_creds_if_auth_content_unparsable_and_payload_lists_empty(self, mock_get, mock_post):
+        mock_response = mock_post.return_value # or mock_get, doesn't matter as no requests should be made
+        mock_response.status_code = 200
+        mock_response.url = "http://example.com/login" # dummy
+        mock_response.text = "Welcome"
+        mock_response.history = []
+        mock_response.cookies = {}
+        mock_response.headers = {}
+
+        request_data = self._make_test_credentials_request_data(auth_file_content="malformed:content")
+        # Override username_list and password_list from the helper to be empty for this specific test
+        request_data["username_list"] = []
+        request_data["password_list"] = []
+
+        # parse_auth_content will be called with "malformed:content" and return []
+        with patch('server.app.parse_auth_content', return_value=[]) as mock_parse_content:
+            response = self.app.post('/test_credentials', json=request_data)
+            self.assertEqual(response.status_code, 200)
+            stream_content = b"".join(response.response).decode('utf-8')
+
+            mock_parse_content.assert_called_once_with("malformed:content")
+
+            # Check the initial_info message
+            self.assertIn("Test run initiated. No valid credentials provided from any source. Expecting 0 pairs to be tested.", stream_content)
+
+            # Check for the SSE completion message indicating no pairs to test
+            self.assertIn('"message": "No username/password pairs to test."', stream_content)
+            self.assertIn('"status": "complete"', stream_content)
+
+
 if __name__ == '__main__':
     unittest.main()
