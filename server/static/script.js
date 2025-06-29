@@ -324,6 +324,24 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     } else { console.error("Proceed to Credentials button not found."); }
 
+    function readFileContentAsString(file) {
+        return new Promise((resolve, reject) => {
+            if (!file) {
+                reject(new Error("No file provided to reader."));
+                return;
+            }
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                resolve(e.target.result);
+            };
+            reader.onerror = (e) => {
+                console.error("FileReader error:", e);
+                reject(new Error("An error occurred while reading the file."));
+            };
+            reader.readAsText(file);
+        });
+    }
+
     function addLogMessage(message, type = 'info', dataAttributes = {}) {
         const currentActiveTerminalBody = document.querySelector('#uiStep-Monitor.active .terminal-body');
         if (!currentActiveTerminalBody) {
