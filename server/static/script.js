@@ -575,9 +575,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (launchAttackBtn) {
         const originalLaunchBtnText = launchAttackBtn.textContent;
         launchAttackBtn.addEventListener('click', async (event) => {
+            console.log("[LaunchAttackBtn] Clicked");
             event.preventDefault();
             launchAttackBtn.disabled = true;
             launchAttackBtn.textContent = 'Launching...';
+            console.log("[LaunchAttackBtn] Button disabled, text changed.");
 
             attemptDetailsStore = {};
             completedAttemptsThisRun = 0;
@@ -600,65 +602,85 @@ document.addEventListener('DOMContentLoaded', () => {
             const targetPostUrl = detectedPostUrlInput ? detectedPostUrlInput.value.trim() : '';
             const usernameFieldName = detectedUsernameFieldInput ? detectedUsernameFieldInput.value.trim() : '';
             const passwordFieldName = detectedPasswordFieldInput ? detectedPasswordFieldInput.value.trim() : '';
+            console.log("[LaunchAttackBtn] Target/Field params retrieved:", {targetPostUrl, usernameFieldName, passwordFieldName});
 
+            console.log("[LaunchAttackBtn] Calling showUiStep('uiStep-Monitor')");
             showUiStep('uiStep-Monitor');
+            console.log("[LaunchAttackBtn] Called showUiStep('uiStep-Monitor')");
 
             terminalBody = document.querySelector('#uiStep-Monitor.active .terminal-body');
             if (terminalBody) {
                 terminalBody.innerHTML = '';
+                console.log("[LaunchAttackBtn] Terminal body cleared.");
             } else {
-                console.error("Could not find active terminal body in Step Monitor for clearing.");
+                console.error("[LaunchAttackBtn] Could not find active terminal body in Step Monitor for clearing.");
             }
 
             addLogMessage(`Initiating login attempts against ${targetPostUrl}...`, 'info', {logId: `init-log-${Date.now()}`});
+            console.log("[LaunchAttackBtn] Initial log message added.");
 
             let useAuthPairsFile = false;
+            console.log("[LaunchAttackBtn] Checking authPairsFile:", authPairsFile);
             if (authPairsFile) {
+                console.log("[LaunchAttackBtn] authPairsFile is present. Validating type and size.");
                 if (authPairsFile.type !== 'text/plain' && authPairsFile.type !== 'text/csv') {
+                    console.error("[LaunchAttackBtn] Invalid Auth Pairs file type.");
                     alert("Invalid Auth Pairs file type. Please upload a .txt or .csv file.");
                     if(authPairsUploadInput) authPairsUploadInput.value = '';
                     if(selectedAuthPairsFileNameDisplay) selectedAuthPairsFileNameDisplay.textContent = 'No combo file selected.';
                     addLogMessage("Error: Invalid Auth Pairs file type.", 'fail', {status: 'error', logId: `error-authfile-type-${Date.now()}`});
-                    launchAttackBtn.disabled = false; launchAttackBtn.textContent = originalLaunchBtnText; showUiStep('uiStep-CredentialsInput'); if (elapsedTimeInterval) clearInterval(elapsedTimeInterval); return;
+                    launchAttackBtn.disabled = false; launchAttackBtn.textContent = originalLaunchBtnText; showUiStep('uiStep-CredentialsInput'); if (elapsedTimeInterval) clearInterval(elapsedTimeInterval); console.log("[LaunchAttackBtn] Exiting due to invalid auth pairs file type."); return;
                 }
                 if (authPairsFile.size > 2 * 1024 * 1024) { // Allow slightly larger for combo files
+                    console.error("[LaunchAttackBtn] Auth Pairs file too large.");
                     alert("Auth Pairs file is too large. Maximum size is 2MB.");
                     addLogMessage("Error: Auth Pairs file too large.", 'fail', {status: 'error', logId: `error-authfile-size-${Date.now()}`});
-                    launchAttackBtn.disabled = false; launchAttackBtn.textContent = originalLaunchBtnText; showUiStep('uiStep-CredentialsInput'); if (elapsedTimeInterval) clearInterval(elapsedTimeInterval); return;
+                    launchAttackBtn.disabled = false; launchAttackBtn.textContent = originalLaunchBtnText; showUiStep('uiStep-CredentialsInput'); if (elapsedTimeInterval) clearInterval(elapsedTimeInterval); console.log("[LaunchAttackBtn] Exiting due to auth pairs file too large."); return;
                 }
                 useAuthPairsFile = true;
                 addLogMessage(`Using Username:Password Combo File: ${authPairsFile.name}`, 'info', {logId: `info-use-authfile-${Date.now()}`});
+                console.log("[LaunchAttackBtn] Using authPairsFile.");
             } else {
+                console.log("[LaunchAttackBtn] authPairsFile is NOT present. Validating individual inputs.");
                 // Validate individual username/password inputs only if auth pairs file is not used
                 if (!usernameFile && !singleUser) {
+                    console.error("[LaunchAttackBtn] No username source provided.");
                     alert("Please select a username/email list file OR type a single username/email.");
                     addLogMessage("Error: No username source provided (file or single input).", 'fail', {status: 'error', logId: `error-no-user-source-${Date.now()}`});
-                    launchAttackBtn.disabled = false; launchAttackBtn.textContent = originalLaunchBtnText; showUiStep('uiStep-CredentialsInput'); if (elapsedTimeInterval) clearInterval(elapsedTimeInterval); return;
+                    launchAttackBtn.disabled = false; launchAttackBtn.textContent = originalLaunchBtnText; showUiStep('uiStep-CredentialsInput'); if (elapsedTimeInterval) clearInterval(elapsedTimeInterval); console.log("[LaunchAttackBtn] Exiting due to no username source."); return;
                 }
                 if (usernameFile) {
+                    console.log("[LaunchAttackBtn] Username file is present. Validating type and size.");
                     if (usernameFile.type !== 'text/plain' && usernameFile.type !== 'text/csv') {
+                        console.error("[LaunchAttackBtn] Invalid username file type.");
                         alert("Invalid username file type. Please upload a .txt or .csv file.");
                         if(usernameListInput) usernameListInput.value = '';
                         if(selectedUsernameFileNameDisplay) selectedUsernameFileNameDisplay.textContent = 'No username file selected.';
                         addLogMessage("Error: Invalid username file type.", 'fail', {status: 'error', logId: `error-userfile-type-${Date.now()}`});
-                        launchAttackBtn.disabled = false; launchAttackBtn.textContent = originalLaunchBtnText; showUiStep('uiStep-CredentialsInput'); if (elapsedTimeInterval) clearInterval(elapsedTimeInterval); return;
+                        launchAttackBtn.disabled = false; launchAttackBtn.textContent = originalLaunchBtnText; showUiStep('uiStep-CredentialsInput'); if (elapsedTimeInterval) clearInterval(elapsedTimeInterval); console.log("[LaunchAttackBtn] Exiting due to invalid username file type."); return;
                     }
                     if (usernameFile.size > 1 * 1024 * 1024) {
+                        console.error("[LaunchAttackBtn] Username file too large.");
                         alert("Username file is too large. Maximum size is 1MB.");
                         addLogMessage("Error: Username file too large.", 'fail', {status: 'error', logId: `error-userfile-size-${Date.now()}`});
-                        launchAttackBtn.disabled = false; launchAttackBtn.textContent = originalLaunchBtnText; showUiStep('uiStep-CredentialsInput'); if (elapsedTimeInterval) clearInterval(elapsedTimeInterval); return;
+                        launchAttackBtn.disabled = false; launchAttackBtn.textContent = originalLaunchBtnText; showUiStep('uiStep-CredentialsInput'); if (elapsedTimeInterval) clearInterval(elapsedTimeInterval); console.log("[LaunchAttackBtn] Exiting due to username file too large."); return;
                     }
                 }
                 if (!passwordFile) {
+                    console.error("[LaunchAttackBtn] Password file not selected.");
                     alert("Password file not selected. Please select a password file.");
                     addLogMessage("Error: Password file not selected.", 'fail', {status: 'error', logId: `error-nopassfile-${Date.now()}`});
-                    launchAttackBtn.disabled = false; launchAttackBtn.textContent = originalLaunchBtnText; showUiStep('uiStep-CredentialsInput'); if (elapsedTimeInterval) clearInterval(elapsedTimeInterval); return;
+                    launchAttackBtn.disabled = false; launchAttackBtn.textContent = originalLaunchBtnText; showUiStep('uiStep-CredentialsInput'); if (elapsedTimeInterval) clearInterval(elapsedTimeInterval); console.log("[LaunchAttackBtn] Exiting due to no password file."); return;
                 }
                  addLogMessage(usernameFile ? `Using Username File: ${usernameFile.name}` : `Using Single Username: ${singleUser}`, 'info', {logId: `info-user-source-${Date.now()}`});
                  addLogMessage(`Using Password File: ${passwordFile.name}`, 'info', {logId: `info-pass-source-${Date.now()}`});
+                 console.log("[LaunchAttackBtn] Using individual username/password files/input.");
             }
+            console.log("[LaunchAttackBtn] Credential source validation passed.");
 
+            console.log("[LaunchAttackBtn] Validating target parameters.");
             if (!targetPostUrl || !passwordFieldName || passwordFieldName === 'Could not auto-detect' || !usernameFieldName || usernameFieldName === 'Could not auto-detect') {
+                console.error("[LaunchAttackBtn] Critical form parameters missing.");
                 alert("Critical form parameters (POST URL, Username Field Name, or Password Field Name) are missing or were not detected properly. Please ensure form analysis (Step 1 & 2) was successful and confirm the detected values.");
                 addLogMessage("Error: Critical form parameters missing. Please re-analyze URL.", 'fail', {status: 'error', logId: `error-params-${Date.now()}`});
                 launchAttackBtn.disabled = false;
@@ -675,8 +697,9 @@ document.addEventListener('DOMContentLoaded', () => {
             let passwords_from_file = [];
             let auth_pairs_content_string = null;
 
-
+            console.log("[LaunchAttackBtn] Entering main try block for payload construction and fetch.");
             try {
+                console.log("[LaunchAttackBtn] Constructing payload object.");
                 const payload = {
                     target_post_url: targetPostUrl,
                     username_field_name: usernameFieldName,
@@ -691,46 +714,54 @@ document.addEventListener('DOMContentLoaded', () => {
                 };
 
                 if (useAuthPairsFile) {
+                    console.log("[LaunchAttackBtn] Processing authPairsFile.");
                     addLogMessage(`Reading Auth Pairs file: ${authPairsFile.name}...`, 'info', {logId: `info-read-authpairs-${Date.now()}`});
                     try {
                         const rawFileString = await readFileContentAsString(authPairsFile);
+                        console.log("[LaunchAttackBtn] Raw file string from authPairsFile read, type:", typeof rawFileString);
                         if (typeof rawFileString === 'string') {
                             payload.auth_file_content = rawFileString;
                         } else {
-                            // This case should ideally not be hit if readFileContentAsString works as expected
-                            // but as a fallback, if it's an array (like old readPasswordsFromFile returned)
-                            console.warn('readFileContentAsString did not return a string for authPairsFile; type was:', typeof rawFileString, '. Attempting to join if array.');
+                            console.warn('[LaunchAttackBtn] readFileContentAsString did not return a string for authPairsFile; type was:', typeof rawFileString, '. Attempting to join if array.');
                             if(Array.isArray(rawFileString)) {
                                 payload.auth_file_content = rawFileString.join('\n');
                             } else {
-                                console.error('readFileContentAsString returned non-string, non-array type for authPairsFile. Setting auth_file_content to empty string.');
+                                console.error('[LaunchAttackBtn] readFileContentAsString returned non-string, non-array type for authPairsFile. Setting auth_file_content to empty string.');
                                 payload.auth_file_content = "";
                                 throw new Error('Failed to read auth pairs file as string.');
                             }
                         }
                         addLogMessage(`Auth Pairs file content prepared.`, 'info', {logId: `info-authpairs-done-${Date.now()}`});
+                        console.log("[LaunchAttackBtn] Auth pairs file content prepared for payload.");
                     } catch (e) {
+                        console.error("[LaunchAttackBtn] Error processing Auth Pairs file:", e);
                         addLogMessage(`Error processing Auth Pairs file: ${e.message}`, 'fail', {status: 'error', logId: `error-authprocess-${Date.now()}`});
-                        launchAttackBtn.disabled = false; launchAttackBtn.textContent = originalLaunchBtnText; showUiStep('uiStep-CredentialsInput'); if (elapsedTimeInterval) clearInterval(elapsedTimeInterval); return;
+                        launchAttackBtn.disabled = false; launchAttackBtn.textContent = originalLaunchBtnText; showUiStep('uiStep-CredentialsInput'); if (elapsedTimeInterval) clearInterval(elapsedTimeInterval); console.log("[LaunchAttackBtn] Exiting due to error processing auth pairs file."); return;
                     }
                 } else {
+                    console.log("[LaunchAttackBtn] Processing individual username/password inputs.");
                     if (usernameFile) {
+                        console.log("[LaunchAttackBtn] Processing usernameFile.");
                         addLogMessage(`Reading username file: ${usernameFile.name}...`, 'info', {logId: `info-read-userfile-${Date.now()}`});
                         usernames_from_file = await readUsernamesFromFile(usernameFile);
                         payload.username_list = usernames_from_file;
                         addLogMessage(`Successfully read ${usernames_from_file.length} username(s).`, 'info', {logId: `info-read-userfile-done-${Date.now()}`});
+                        console.log("[LaunchAttackBtn] Username file processed.");
                     } else if (singleUser) {
                         payload.username_list = [singleUser];
-                         addLogMessage(`Using single username: ${singleUser}`, 'info', {logId: `info-single-user-${Date.now()}`});
+                        addLogMessage(`Using single username: ${singleUser}`, 'info', {logId: `info-single-user-${Date.now()}`});
+                        console.log("[LaunchAttackBtn] Single username processed.");
                     }
 
+                    console.log("[LaunchAttackBtn] Processing passwordFile.");
                     addLogMessage(`Reading password file: ${passwordFile.name}...`, 'info', {logId: `info-read-passfile-${Date.now()}`});
                     passwords_from_file = await readPasswordsFromFile(passwordFile);
                     payload.password_list = passwords_from_file;
                     addLogMessage(`Successfully read ${passwords_from_file.length} password(s). Starting tests...`, 'info', {logId: `info-read-passfile-done-${Date.now()}`});
+                    console.log("[LaunchAttackBtn] Password file processed.");
                 }
-
-
+                console.log("[LaunchAttackBtn] Payload fully constructed:", payload);
+                console.log("[LaunchAttackBtn] Making fetch call to /test_credentials...");
                 const response = await fetch(API_BASE_URL + '/test_credentials', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json',},
@@ -838,13 +869,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     buffer = sseMessages[sseMessages.length - 1];
                 }
                 await processStream();
+                console.log("[LaunchAttackBtn] processStream finished.");
             } catch (error) {
-                console.error("Error during credential testing setup or API call:", error);
+                console.error("[LaunchAttackBtn] Error during credential testing setup or API call:", error);
                 addLogMessage(`Error: ${error.message}`, 'fail', {status: 'error', logId: `error-setup-${Date.now()}`});
                 alert(`An error occurred: ${error.message}`);
-                showUiStep('uiStep-CredentialsInput');
+                showUiStep('uiStep-CredentialsInput'); // Go back to allow fixing input
                 if (elapsedTimeInterval) clearInterval(elapsedTimeInterval);
+                console.log("[LaunchAttackBtn] Error caught, UI reset to CredentialsInput.");
             } finally {
+                console.log("[LaunchAttackBtn] Entering finally block.");
                 launchAttackBtn.disabled = false;
                 launchAttackBtn.textContent = originalLaunchBtnText;
                 if (elapsedTimeInterval) {
