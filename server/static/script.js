@@ -461,15 +461,65 @@ document.addEventListener('DOMContentLoaded', () => {
             const clickedP = event.target.closest('p[data-log-id]');
             if (clickedP) {
                 const logId = clickedP.dataset.logId;
-                if (attemptDetailsStore[logId] && attemptDetailsStore[logId].request_details !== undefined) {
+                if (attemptDetailsStore[logId]) {
                     const details = attemptDetailsStore[logId];
-                    modalRequestDetails.textContent = JSON.stringify(details.request_details, null, 2);
+                    modalRequestDetails.textContent = details.request_details ? JSON.stringify(details.request_details, null, 2) : "No request details available.";
                     modalResponseBody.textContent = details.response_body || "No response body captured or applicable.";
+
+                    // Display analysis details - Target new elements in the modal
+                    const modalLoginScore = document.getElementById('modalLoginScore');
+                    const modalPositiveIndicators = document.getElementById('modalPositiveIndicators');
+                    const modalNegativeIndicators = document.getElementById('modalNegativeIndicators');
+
+                    if (details.analysis) {
+                        if (modalLoginScore) modalLoginScore.textContent = details.analysis.score !== undefined ? details.analysis.score : "N/A";
+
+                        if (modalPositiveIndicators) {
+                            modalPositiveIndicators.innerHTML = ''; // Clear previous
+                            if (details.analysis.positive_indicators && details.analysis.positive_indicators.length > 0) {
+                                const ul = document.createElement('ul');
+                                details.analysis.positive_indicators.forEach(item => {
+                                    const li = document.createElement('li');
+                                    li.textContent = item;
+                                    ul.appendChild(li);
+                                });
+                                modalPositiveIndicators.appendChild(ul);
+                            } else {
+                                modalPositiveIndicators.textContent = "None";
+                            }
+                        }
+
+                        if (modalNegativeIndicators) {
+                            modalNegativeIndicators.innerHTML = ''; // Clear previous
+                            if (details.analysis.negative_indicators && details.analysis.negative_indicators.length > 0) {
+                                const ul = document.createElement('ul');
+                                details.analysis.negative_indicators.forEach(item => {
+                                    const li = document.createElement('li');
+                                    li.textContent = item;
+                                    ul.appendChild(li);
+                                });
+                                modalNegativeIndicators.appendChild(ul);
+                            } else {
+                                modalNegativeIndicators.textContent = "None";
+                            }
+                        }
+                    } else {
+                        if (modalLoginScore) modalLoginScore.textContent = "N/A";
+                        if (modalPositiveIndicators) modalPositiveIndicators.textContent = "N/A";
+                        if (modalNegativeIndicators) modalNegativeIndicators.textContent = "N/A";
+                    }
                     responseModal.style.display = 'block';
                 } else {
                     console.warn(`No detailed data in store for logId: ${logId}. Entry:`, clickedP.textContent);
+                    // Fallback for entries without full details (e.g., info messages)
                     modalRequestDetails.textContent = "No request details available for this log entry.";
-                    modalResponseBody.textContent = "No response body available for this log entry (this might be an informational message).";
+                    modalResponseBody.textContent = "No response body available for this log entry.";
+                    const modalLoginScore = document.getElementById('modalLoginScore');
+                    const modalPositiveIndicators = document.getElementById('modalPositiveIndicators');
+                    const modalNegativeIndicators = document.getElementById('modalNegativeIndicators');
+                    if (modalLoginScore) modalLoginScore.textContent = "N/A";
+                    if (modalPositiveIndicators) modalPositiveIndicators.textContent = "N/A";
+                    if (modalNegativeIndicators) modalNegativeIndicators.textContent = "N/A";
                     responseModal.style.display = 'block';
                 }
             }
@@ -673,11 +723,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
                                     const displayPassword = (result_item.password_actual || result_item.password || "").replace(/./g, '*');
                                     const clText = result_item.content_length !== undefined && result_item.content_length !== null ? result_item.content_length : 'N/A';
-                                    const logDetail = `[${result_item.status.toUpperCase()}] User: ${result_item.username} / Pass: ${displayPassword} (CL: ${clText}) - ${result_item.details}`;
+                                    let logDetail = `[${result_item.status.toUpperCase()}] User: ${result_item.username} / Pass: ${displayPassword} (CL: ${clText})`;
+
+                                    // Add score to the log detail if analysis is present
+                                    if (result_item.analysis && result_item.analysis.score !== undefined) {
+                                        logDetail += ` (Score: ${result_item.analysis.score})`;
+                                    }
+                                    logDetail += ` - ${result_item.details}`;
+
 
                                     attemptDetailsStore[currentAttemptId] = {
                                         request_details: result_item.request_details,
-                                        response_body: result_item.response_body
+                                        response_body: result_item.response_body,
+                                        analysis: result_item.analysis // Store the new analysis field
                                     };
 
                                     addLogMessage(logDetail, result_item.status, {

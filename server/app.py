@@ -5,6 +5,7 @@ from urllib.parse import urljoin, urlparse, parse_qs # Added parse_qs
 import json
 import os
 import sys
+import re
 
 # Add the parent directory of 'server' to sys.path to find common_field_names
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -492,60 +493,346 @@ def test_credentials():
                             else:
                                 attempt_result["content_length"] = -1
 
-                        response_text_lower = response_text_content.lower()
-                        attempt_result["status"] = "failure"
+                        # Initialize analysis variables
+                        login_score = 0
+                        positive_indicators = []
+                        negative_indicators = []
+                        soup = BeautifulSoup(response.text, 'html.parser')
+                        response_text_lower = response.text.lower()
 
+                        # Store original response length for comparison (e.g. D2)
+                        # This would be more effective if we had a baseline length of the login page itself.
+                        # For now, we'll just use the current response length if needed by a check,
+                        # or this could be a placeholder for a more advanced check.
+                        original_response_length = len(response.text)
+
+
+                        # Category A: Definitive Failure Indicators
+                        # A1: Check for Explicit Error Messages
+                        # More comprehensive list of error messages
+                        detailed_error_messages = common_error_messages + [
+                            "invalid login attempt", "please try again", "check your credentials",
+                            "account disabled", "contact support", "kullanıcı bulunamadı",
+                            "şifre yanlış", "hesap kilitli", "doğrulama kodu hatalı",
+                            "güvenlik resmi yanlış", "captcha validation failed",
+                            "csrf token mismatch", "token expired", "forbidden", "access denied"
+                        ]
                         found_error_message_text = None
-                        for err_msg in common_error_messages:
+                        for err_msg in detailed_error_messages:
                             if err_msg in response_text_lower:
                                 found_error_message_text = err_msg
                                 break
-
                         if found_error_message_text:
-                            attempt_result["details"] = f"Login failed: Found error message '{found_error_message_text}' in response."
-                        elif response.status_code >= 400:
-                            attempt_result["details"] = f"Login attempt failed with HTTP status code: {response.status_code}."
+                            login_score -= 100
+                            negative_indicators.append(f"Found explicit error text: '{found_error_message_text}'")
+
+                        # A2: Check for Login Form Persistence (Password Field)
+                        # Check if the password input field (by name) is still present.
+                        # This uses the password_field_name identified in the earlier analysis step.
+                        if password_field_name and soup.find('input', {'name': password_field_name}):
+                            login_score -= 75
+                            negative_indicators.append(f"Login form (password field '{password_field_name}') is still present")
+                        elif soup.find('input', {'type': 'password'}): # More generic check if name specific fails
+                            login_score -= 60 # Slightly less confidence than specific name
+                            negative_indicators.append("Login form (generic password field) is still present")
+
+
+                        # A3: Check for CAPTCHA
+                        captcha_keywords = ["captcha", "i'm not a robot", "g-recaptcha", "recaptcha", "security check", "are you human"]
+                        captcha_elements_selectors = [
+                            {'class': 'g-recaptcha'},
+                            {'id': lambda x: x and 'captcha' in x.lower()},
+                            {'name': lambda x: x and 'captcha' in x.lower()}
+                        ]
+                        found_captcha_keyword = any(kw in response_text_lower for kw in captcha_keywords)
+                        found_captcha_element = any(soup.find(attrs=selector) for selector in captcha_elements_selectors)
+
+                        if found_captcha_keyword or found_captcha_element:
+                            login_score -= 100
+                            negative_indicators.append("CAPTCHA challenge detected on page")
+
+                        # A4: Check for Critical HTTP Error Codes
+                        if response.status_code in [401, 403, 429]:
+                            login_score -= 100
+                            negative_indicators.append(f"Received critical HTTP error code: {response.status_code}")
+                        elif response.status_code >= 400 and response.status_code < 500: # Other 4xx errors
+                            login_score -= 40
+                            negative_indicators.append(f"Received client-side HTTP error code: {response.status_code}")
+
+
+                        # Category B: Definitive Success Indicators
+                        # B1: Check for Definitive Post-Login Elements
+                        # More comprehensive list of selectors for logout links/buttons or common post-login elements
+                        post_login_selectors = [
+                            {'href': lambda href: href and ('logout' in href.lower() or 'signout' in href.lower() or 'logoff' in href.lower())},
+                            {'id': lambda x: x and ('dashboard' in x.lower() or 'user-profile' in x.lower() or 'account-settings' in x.lower())},
+                            {'class': lambda x: x and any(c in x.lower() for c in ['user-menu', 'profile-dropdown', 'site-header-actions--logged-in'])},
+                            {'aria-label': lambda x: x and ('logout' in x.lower() or 'profile' in x.lower())},
+                            # Common text content for logout (less reliable but can be a fallback)
+                            # lambda tag: tag.name == 'a' and ('logout' in tag.get_text(strip=True).lower() or 'sign out' in tag.get_text(strip=True).lower())
+                        ]
+                        found_post_login_element_detail = None
+                        for selector_type in post_login_selectors:
+                            if isinstance(selector_type, dict): # Attribute based selectors
+                                found_element = soup.find(attrs=selector_type)
+                                if found_element:
+                                    found_post_login_element_detail = f"Found element matching {selector_type}"
+                                    break
+                            # elif callable(selector_type): # Function based selector (e.g. for text content)
+                            #     found_element = soup.find(selector_type)
+                            #     if found_element:
+                            #         found_post_login_element_detail = f"Found element via custom function: {selector_type.__name__}"
+                            #         break
+                        if found_post_login_element_detail:
+                            login_score += 80
+                            positive_indicators.append(f"Found definitive post-login element ({found_post_login_element_detail})")
+
+                        # B2: Check for User-Specific Information (Expected Username)
+                        # Ensure username_attempt is not empty and appears in the text, but not in an input field's value.
+                        if username_attempt and username_attempt.lower() in response_text_lower:
+                            is_in_input_value = False
+                            for input_tag in soup.find_all('input'):
+                                if input_tag.get('value', '').lower() == username_attempt.lower():
+                                    is_in_input_value = True
+                                    break
+                            if not is_in_input_value:
+                                login_score += 70
+                                positive_indicators.append(f"Expected username '{username_attempt}' found in page body (not as input value)")
+                            else:
+                                # Username found, but it's in an input field, could be prefill on failed login
+                                login_score -= 10 # Slight negative if it's just prefilled username
+                                negative_indicators.append(f"Expected username '{username_attempt}' found, but only in an input field value (potential prefill on failure)")
+
+
+                        # Category C: Strong Corroborating Indicators
+                        # C1: Check for Significant URL Redirection
+                        parsed_target_post_url = urlparse(target_post_url)
+                        parsed_response_url = urlparse(response.url)
+                        is_redirected = len(response.history) > 0
+                        is_redirected_significantly = False
+                        if is_redirected:
+                            # Check if netloc changed or if path changed substantially (e.g., /login to /dashboard)
+                            if parsed_target_post_url.netloc != parsed_response_url.netloc:
+                                is_redirected_significantly = True
+                            else:
+                                # Compare first significant path segment if available
+                                target_path_segment = (parsed_target_post_url.path.split('/')[1] if parsed_target_post_url.path.count('/') > 1 else parsed_target_post_url.path).lower()
+                                response_path_segment = (parsed_response_url.path.split('/')[1] if parsed_response_url.path.count('/') > 1 else parsed_response_url.path).lower()
+                                common_login_paths = ['login', 'signin', 'auth', 'account', 'authenticate']
+                                # Redirect from a common login path to something else
+                                if any(lp in target_path_segment for lp in common_login_paths) and not any(lp in response_path_segment for lp in common_login_paths):
+                                    is_redirected_significantly = True
+                                # Or if paths are just very different and not just a query param change
+                                elif target_path_segment != response_path_segment and parsed_target_post_url.path != parsed_response_url.path :
+                                    is_redirected_significantly = True
+
+
+                        if is_redirected_significantly:
+                            login_score += 40
+                            positive_indicators.append(f"Significant URL redirection from '{parsed_target_post_url.path}' to '{parsed_response_url.path}'")
+                        elif is_redirected: # Minor redirect (e.g. /login to /login?error=1)
+                            login_score += 5 # Small bonus for any redirect, but could be to an error page
+                            positive_indicators.append(f"Minor URL redirection to '{parsed_response_url.path}'")
+
+
+                        # C2: Check for Changed Cookies
+                        post_request_cookies = session.cookies.get_dict()
+                        cookies_changed = False
+                        if len(post_request_cookies) > len(pre_request_cookies):
+                            cookies_changed = True
                         else:
-                            parsed_target_post_url = urlparse(target_post_url)
-                            parsed_response_url = urlparse(response.url)
-                            is_redirected = len(response.history) > 0
-                            is_redirected_significantly = is_redirected and \
-                                (parsed_target_post_url.netloc != parsed_response_url.netloc or \
-                                (parsed_target_post_url.path.split('/')[1] if parsed_target_post_url.path.count('/') > 1 else '') != \
-                                (parsed_response_url.path.split('/')[1] if parsed_response_url.path.count('/') > 1 else ''))
-                            has_success_keywords_in_url = any(succ_kw in response.url.lower() for succ_kw in common_success_keywords)
-                            has_success_keywords_in_body = any(succ_kw in response_text_lower for succ_kw in common_success_keywords)
+                            for k, v in post_request_cookies.items():
+                                if k not in pre_request_cookies or pre_request_cookies[k] != v:
+                                    cookies_changed = True
+                                    break
+                        if cookies_changed:
+                            login_score += 25
+                            positive_indicators.append("Session cookies were set or changed")
 
-                            post_request_cookies = session.cookies.get_dict()
-                            cookies_changed = False
-                            if len(post_request_cookies) > len(pre_request_cookies):
-                                cookies_changed = True
+                        # C3: Check for Absence of Login Form (Password Field)
+                        # This is the inverse of A2. More reliable if specific password_field_name is NOT found.
+                        if password_field_name and not soup.find('input', {'name': password_field_name}) and not soup.find('input', {'type': 'password'}):
+                            login_score += 20
+                            positive_indicators.append(f"Login form (password field '{password_field_name}' or generic) is no longer present")
+                        elif not soup.find('input', {'type': 'password'}): # Generic check
+                            login_score += 15 # Slightly less if only generic check passes
+                            positive_indicators.append("Login form (generic password field) is no longer present")
+
+                        # C4: Check for "Soft" Failure URL
+                        soft_failure_url_patterns = ["error=", "login_failed=", "failure=", "denied=", "auth_error="]
+                        if any(pattern in response.url.lower() for pattern in soft_failure_url_patterns):
+                            login_score -= 30
+                            negative_indicators.append(f"URL '{response.url}' contains failure parameters")
+
+                        # C5: Check for Success Keywords in Body/URL
+                        # Using a refined list of success keywords
+                        refined_success_keywords = [
+                            "welcome back", "successfully logged in", "dashboard overview",
+                            "my profile", "account settings", "control panel access", "manage account",
+                            "logout", "sign out" # Be careful with "logout" if not tied to a link element
+                        ]
+                        if any(kw in response_text_lower for kw in refined_success_keywords) or \
+                           any(kw in response.url.lower() for kw in refined_success_keywords):
+                            login_score += 15
+                            positive_indicators.append("Found success-associated keyword in body/URL")
+
+                        # C6: Check for HTTP 200 OK on POST URL (potential soft failure)
+                        # This means the page might have just reloaded with an error message not caught by A1.
+                        if response.status_code == 200 and response.url == target_post_url and not is_redirected:
+                            login_score -= 20
+                            negative_indicators.append("Page reloaded with 200 OK (same URL as POST), indicating probable soft failure (no redirect)")
+
+
+                        # Category D: Contextual & Minor Indicators
+                        # D1: Check for Page Title Change
+                        # This requires knowing the original page title. For now, we can check if the title
+                        # seems like a "non-login" title.
+                        title_tag = soup.find('title')
+                        if title_tag:
+                            page_title_lower = title_tag.get_text(strip=True).lower()
+                            login_related_titles = ["login", "log in", "sign in", "signin", "authenticate", "access"]
+                            dashboard_related_titles = ["dashboard", "my account", "profile", "settings", "welcome"]
+                            if any(dt in page_title_lower for dt in dashboard_related_titles) and \
+                               not any(lt in page_title_lower for lt in login_related_titles):
+                                login_score += 10
+                                positive_indicators.append(f"Page title changed to '{page_title_lower}', suggesting success")
+                            elif any(lt in page_title_lower for lt in login_related_titles) and not found_error_message_text and not soup.find('input', {'type': 'password'}):
+                                # Title still says login, but form is gone and no error, could be intermediate step or odd success
+                                login_score += 5
+                                positive_indicators.append(f"Page title ('{page_title_lower}') still login-related, but form gone and no errors.")
+                            elif any(lt in page_title_lower for lt in login_related_titles) and (found_error_message_text or soup.find('input', {'type': 'password'})):
+                                login_score -=5
+                                negative_indicators.append(f"Page title ('{page_title_lower}') remains login-related with other failure signs.")
+
+
+                        # D2: Check for Increased Response Size
+                        # This is tricky without a baseline. A very small response after login might be an error.
+                        # A significantly larger one might be a dashboard.
+                        # Let's assume a "typical" error page is < 5KB and a dashboard > 10KB. This is highly speculative.
+                        current_response_length = len(response.text)
+                        if current_response_length > 10000 and not found_error_message_text: # > 10KB and no obvious error
+                            login_score += 10
+                            positive_indicators.append(f"Response size ({current_response_length} bytes) is relatively large, may indicate a content-rich page (e.g., dashboard)")
+                        elif current_response_length < 2000 and not is_redirected_significantly : # < 2KB and not a significant redirect (could be a small success confirmation)
+                            # If it's very small but we have other strong success signals, it might be ok (e.g. API success message)
+                            # If it's small and we have failure signals, it reinforces failure.
+                            # This check alone is weak.
+                            pass # Avoid penalizing too much for small size alone if other indicators are mixed.
+
+                        # D3: Check for Input Field Error Classes
+                        error_input_classes = ["input-error", "field-error", "has-error", "is-invalid"]
+                        found_error_class = False
+                        for input_tag in soup.find_all('input'):
+                            input_classes = input_tag.get('class', [])
+                            if any(err_cls in input_classes for err_cls in error_input_classes):
+                                found_error_class = True
+                                break
+                        if found_error_class:
+                            login_score -= 15
+                            negative_indicators.append("Found CSS error classes on input fields")
+
+                        # D4: Check for Redirect Loop
+                        if len(response.history) > 10: # requests default max_redirects is 30
+                            login_score -= 50
+                            negative_indicators.append(f"Potential redirect loop detected ({len(response.history)} redirects)")
+
+                        # D5: Check for API-Driven Login (JSON response)
+                        try:
+                            json_response = response.json()
+                            if isinstance(json_response, dict):
+                                # Check for success patterns
+                                if json_response.get('success') is True or \
+                                   json_response.get('status','').lower() == 'success' or \
+                                   any(k in json_response for k in ['token', 'session_id', 'auth_token', 'jwt']):
+                                    login_score += 90
+                                    positive_indicators.append("API success response detected (e.g., success:true or token found)")
+                                # Check for failure patterns
+                                elif json_response.get('success') is False or \
+                                     any(k in json_response for k in ['error', 'errors', 'message']) or \
+                                     json_response.get('status','').lower() in ['fail', 'failure', 'error'] :
+
+                                    error_message_from_json = json_response.get('error') or json_response.get('message') or json.dumps(json_response.get('errors'))
+                                    login_score -= 90
+                                    negative_indicators.append(f"API failure response detected (e.g., success:false or error message: {error_message_from_json})")
+                                else:
+                                    # Neutral JSON response, not clearly success or failure by common patterns
+                                    login_score += 0 # No change, needs other indicators
+                                    positive_indicators.append("JSON response received, structure not indicative of immediate success/failure")
+                        except json.JSONDecodeError:
+                            # Not a JSON response, this check doesn't apply
+                            pass
+
+
+                        # D6: Check for 2FA/MFA Prompt
+                        mfa_keywords = ["two-factor", "2fa", "mfa", "multi-factor", "verification code", "authenticator app", "security code", "enter code"]
+                        if any(kw in response_text_lower for kw in mfa_keywords):
+                            login_score += 30 # Partial success, but needs more action
+                            positive_indicators.append("2FA/MFA prompt detected. User authenticated, needs second factor.")
+                            # Optionally, could set a specific status here like "needs_2fa" if score is ambiguous.
+
+                        # D7: Check for Welcome Message Specificity
+                        welcome_messages_generic = ["welcome", "hello"]
+                        welcome_messages_user_specific_pattern = rf"(welcome|hello|hi)[\s,]+{re.escape(username_attempt)}[!\.]?" if username_attempt else None
+
+                        found_generic_welcome = any(f" {wm} " in response_text_lower or f"{wm}!" in response_text_lower for wm in welcome_messages_generic)
+                        found_specific_welcome = False
+                        if welcome_messages_user_specific_pattern:
+                             if re.search(welcome_messages_user_specific_pattern, response_text_lower, re.IGNORECASE):
+                                found_specific_welcome = True
+
+                        if found_specific_welcome:
+                            login_score += 50
+                            positive_indicators.append(f"Specific welcome message found for user '{username_attempt}'")
+                        elif found_generic_welcome and not found_specific_welcome: # Generic welcome, but not specific (and B2 didn't catch it more strongly)
+                            if not any("welcome to our service" in pi.lower() for pi in positive_indicators): # Avoid double counting if already part of a keyword
+                                login_score += 5
+                                positive_indicators.append("Generic welcome message found")
+
+
+                        # D8: Check for Session-Related Headers (Set-Cookie in the final response)
+                        # This is somewhat covered by C2 (cookies_changed), but specifically looks at the final response headers.
+                        if 'Set-Cookie' in response.headers:
+                            # Check if this specific indicator for Set-Cookie is already covered by "cookies_changed" to avoid double points for same underlying reason
+                            already_counted_cookie_change = any("cookies were set or changed" in pi for pi in positive_indicators)
+                            if not already_counted_cookie_change:
+                                login_score += 15
+                                positive_indicators.append("Set-Cookie header found in the final response, indicating session activity")
+
+                        # Ensure positive and negative indicators are unique to avoid clutter if same condition met multiple ways
+                        positive_indicators = list(set(positive_indicators))
+                        negative_indicators = list(set(negative_indicators))
+
+                        # Determine Final Status and Details
+                        final_status = "unknown"
+                        if login_score >= 50:
+                            final_status = "success"
+                        elif login_score <= -50:
+                            final_status = "failure"
+                        # else: final_status remains "unknown" or could be "likely_success/failure" based on score bands
+
+                        details_string = f"Final Score: {login_score}. Positive Indicators: {positive_indicators}. Negative Indicators: {negative_indicators}."
+                        if final_status == "unknown":
+                            if login_score > 0:
+                                details_string += " (Ambiguous, leaning positive)"
+                            elif login_score < 0:
+                                details_string += " (Ambiguous, leaning negative)"
                             else:
-                                for k, v in post_request_cookies.items():
-                                    if k not in pre_request_cookies or pre_request_cookies[k] != v:
-                                        cookies_changed = True
-                                        break
-                            if cookies_changed:
-                                 app.logger.info(f"SSE stream: Cookies changed for user {username_attempt} (pass: ****). Before: {len(pre_request_cookies)} keys, After: {len(post_request_cookies)} keys.")
+                                details_string += " (Ambiguous, neutral score)"
 
-                            if is_redirected_significantly:
-                                attempt_result["status"] = "success"
-                                attempt_result["details"] = f"Success: Redirected from login page to {response.url} (Status: {response.status_code})."
-                            elif (has_success_keywords_in_url or has_success_keywords_in_body):
-                                attempt_result["status"] = "success"
-                                attempt_result["details"] = f"Success: Found success keywords in URL/body (Status: {response.status_code})."
-                            elif response.status_code == 200 and cookies_changed and not is_redirected_significantly and not (parsed_target_post_url.path == parsed_response_url.path and parsed_target_post_url.query == parsed_response_url.query) :
-                                 attempt_result["status"] = "success"
-                                 attempt_result["details"] = f"Possible success: Status 200, new/changed cookies, and URL changed to {response.url}."
-                            elif response.status_code == 200 and cookies_changed:
-                                 attempt_result["status"] = "success"
-                                 attempt_result["details"] = f"Possible success: Status 200, new/changed cookies detected. Final URL: {response.url}."
-                            elif response.status_code == 200:
-                                 attempt_result["details"] = f"Status 200, but no clear success indicators. Final URL: {response.url}. Likely a soft failure."
-                            else:
-                                attempt_result["details"] = f"Login attempt status unclear. Final URL: {response.url} (Status: {response.status_code})."
 
-                        app.logger.debug(f"SSE stream: Yielding result for {username_attempt} - {attempt_result['status']}")
+                        attempt_result["status"] = final_status
+                        attempt_result["details"] = details_string
+                        attempt_result["analysis"] = {
+                            "score": login_score,
+                            "positive_indicators": positive_indicators,
+                            "negative_indicators": negative_indicators
+                        }
+
+                        # Log the detailed analysis for debugging on the server
+                        app.logger.debug(f"SSE stream: User '{username_attempt}', Pass '********', Final Score: {login_score}, Status: {final_status}")
+                        app.logger.debug(f"Positive Indicators: {positive_indicators}")
+                        app.logger.debug(f"Negative Indicators: {negative_indicators}")
+
                         yield f"data: {json.dumps(attempt_result)}\n\n"
 
                     except requests.exceptions.Timeout:

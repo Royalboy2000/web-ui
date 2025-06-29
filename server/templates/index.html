@@ -251,6 +251,17 @@ username=test&password=123"></textarea>
                 <h4 class="modal-subtitle">Response Body:</h4>
                 <pre id="modalResponseBody" class="modal-code-block"></pre>
             </div>
+
+            <div class="modal-section">
+                <h4 class="modal-subtitle">Login Analysis Details:</h4>
+                <p><strong>Score:</strong> <span id="modalLoginScore">N/A</span></p>
+
+                <h5 class="modal-subtitle" style="font-size: 1em; margin-top: 10px;">Positive Indicators:</h5>
+                <div id="modalPositiveIndicators" class="modal-code-block" style="max-height: 150px; overflow-y: auto;">N/A</div>
+
+                <h5 class="modal-subtitle" style="font-size: 1em; margin-top: 10px;">Negative Indicators:</h5>
+                <div id="modalNegativeIndicators" class="modal-code-block" style="max-height: 150px; overflow-y: auto;">N/A</div>
+            </div>
         </div>
     </div>
     <script src="{{ url_for('static', filename='script.js') }}" defer></script>
