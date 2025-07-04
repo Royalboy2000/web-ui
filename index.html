@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Lexend:wght@400;500;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="page-container">
@@ -19,26 +19,26 @@
                 </a>
             </div>
             <nav class="sidebar-nav">
-                <a href="#icon-dashboard" class="nav-link active">
+                <a href="#" class="nav-link active">
                     <svg class="icon"><use href="#icon-dashboard"/></svg>
                     <span>Dashboard</span>
                 </a>
-                <a href="#icon-target" class="nav-link">
+                <a href="#" class="nav-link">
                     <svg class="icon"><use href="#icon-target"/></svg>
                     <span>New Scan</span>
                 </a>
-                <a href="#icon-history" class="nav-link">
+                <a href="#" class="nav-link">
                     <svg class="icon"><use href="#icon-history"/></svg>
                     <span>History</span>
                     <span class="badge">3</span>
                 </a>
-                <a href="#icon-settings" class="nav-link">
+                <a href="#" class="nav-link">
                     <svg class="icon"><use href="#icon-settings"/></svg>
                     <span>Settings</span>
                 </a>
             </nav>
             <div class="sidebar-footer">
-                <a href="#icon-help" class="nav-link"> <!-- Also updating help link for consistency -->
+                <a href="#" class="nav-link">
                     <svg class="icon"><use href="#icon-help"/></svg>
                     <span>Help</span>
                 </a>
@@ -77,7 +77,7 @@
                 </div>
             </header>
 
-            <section class="content-section" id="dashboard-content">
+            <section class="content-section">
                 <div class="section-header">
                     <h1>Dashboard</h1>
                     <div class="header-buttons">
@@ -169,163 +169,6 @@
                     </div>
                 </div>
             </section>
-
-            <section class="content-section" id="new-scan-content" style="display: none;">
-                <!-- Step 1: Define Target -->
-                <div class="section-header">
-                    <h1>New Scan: Step 1 - Define Target</h1>
-                </div>
-                <div class="card">
-                    <div class="card-grid">
-                        <div class="form-card"> <!-- Reusing form-card style for consistency -->
-                            <div class="card-header">
-                                <h2>Analyze Login Page URL</h2>
-                            </div>
-                            <form id="analyze-url-form">
-                                <div class="form-group">
-                                    <input type="url" id="target-login-url" placeholder=" " required>
-                                    <label for="target-login-url">Login Page URL</label>
-                                </div>
-                                <button type="submit" class="button button-primary full-width">Analyze Page</button>
-                            </form>
-                        </div>
-                        <div class="form-card">
-                             <div class="card-header">
-                                <h2>Parse Raw HTTP Request</h2>
-                            </div>
-                            <form id="parse-request-form">
-                                <div class="form-group">
-                                    <textarea id="raw-http-request" placeholder=" " style="height: 150px; width: 100%;" required></textarea>
-                                    <label for="raw-http-request">Paste Full HTTP Request</label>
-                                </div>
-                                <button type="submit" class="button button-primary full-width">Parse Request</button>
-                            </form>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Step 2: Review & Configure -->
-                <div class="section-header" style="margin-top: var(--spacing-8);">
-                    <h1>New Scan: Step 2 - Review & Configure Parameters</h1>
-                </div>
-                <div class="card" id="review-parameters-section" > <!-- Initially hidden/disabled appearance via JS/CSS -->
-                    <div class="card-grid">
-                        <div class="form-card">
-                            <div class="card-header"><h2>Detected Parameters</h2></div>
-                            <form id="parameters-form">
-                                <div class="form-group">
-                                    <input type="text" id="detected-post-url" placeholder=" ">
-                                    <label for="detected-post-url">Form POST URL</label>
-                                </div>
-                                <div class="form-group">
-                                    <input type="text" id="detected-username-field" placeholder=" ">
-                                    <label for="detected-username-field">Username Field Name</label>
-                                </div>
-                                <div class="form-group">
-                                    <input type="text" id="detected-password-field" placeholder=" ">
-                                    <label for="detected-password-field">Password Field Name</label>
-                                </div>
-                                <div class="form-group">
-                                    <input type="text" id="detected-csrf-name" placeholder=" ">
-                                    <label for="detected-csrf-name">CSRF Token Name (if any)</label>
-                                </div>
-                                <div class="form-group">
-                                    <input type="text" id="detected-csrf-value" placeholder=" ">
-                                    <label for="detected-csrf-value">CSRF Token Value (if any)</label>
-                                </div>
-                                <!-- Add display for form_parameters and cookies if parsed from raw request -->
-                                <div id="raw-request-params-display" style="display:none;">
-                                    <h4>Additional Parameters from Raw Request:</h4>
-                                    <pre id="raw-request-params-data"></pre>
-                                </div>
-                                <div id="raw-request-cookies-display" style="display:none;">
-                                    <h4>Cookies from Raw Request:</h4>
-                                    <pre id="raw-request-cookies-data"></pre>
-                                </div>
-                                  <div id="analysis-cookies-display" style="display:none;">
-                                    <h4>Cookies from URL Analysis:</h4>
-                                    <pre id="analysis-cookies-data"></pre>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Step 3: Provide Credentials -->
-                <div class="section-header" style="margin-top: var(--spacing-8);">
-                    <h1>New Scan: Step 3 - Provide Credentials</h1>
-                </div>
-                <div class="card" id="credentials-section"> <!-- Initially hidden/disabled appearance via JS/CSS -->
-                    <div class="card-grid">
-                         <div class="form-card">
-                            <div class="card-header"><h2>Upload Username:Password Combo File</h2></div>
-                            <form id="combo-file-form">
-                                <div class="form-group">
-                                    <input type="file" id="combo-file-input" accept=".txt,.csv">
-                                    <label for="combo-file-input" class="button button-secondary" style="width:auto; margin-top: 5px;">Browse Combo File</label>
-                                    <p id="combo-file-name" style="margin-top: 5px; font-size: 0.9rem;"></p>
-                                </div>
-                            </form>
-                        </div>
-                        <div class="form-card">
-                            <div class="card-header"><h2>Provide Separate Lists (if no combo file)</h2></div>
-                            <form id="separate-lists-form">
-                                <div class="form-group">
-                                    <input type="file" id="username-list-input" accept=".txt,.csv">
-                                     <label for="username-list-input" class="button button-secondary" style="width:auto; margin-top: 5px;">Browse Username File</label>
-                                     <p id="username-list-file-name" style="margin-top: 5px; font-size: 0.9rem;"></p>
-                                    <input type="text" id="single-username-input" placeholder="Or type single username/email here" style="margin-top: 10px;">
-                                </div>
-                                <div class="form-group">
-                                    <input type="file" id="password-list-input" accept=".txt,.csv">
-                                    <label for="password-list-input" class="button button-secondary" style="width:auto; margin-top: 5px;">Browse Password File</label>
-                                    <p id="password-list-file-name" style="margin-top: 5px; font-size: 0.9rem;"></p>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Step 4: Launch & Monitor -->
-                <div class="section-header" style="margin-top: var(--spacing-8);">
-                    <h1>New Scan: Step 4 - Launch & Monitor</h1>
-                </div>
-                <div class="card" id="launch-monitor-section"> <!-- Initially hidden/disabled appearance via JS/CSS -->
-                    <button id="launch-attack-btn" class="button button-primary full-width" style="margin-bottom: var(--spacing-4); background: linear-gradient(45deg, var(--color-error), var(--color-warning));">Launch Attack</button>
-
-                    <div class="card-grid" style="gap: var(--spacing-4); margin-bottom: var(--spacing-4);">
-                        <div class="stat-card" style="background-color: var(--color-secondary); padding: var(--spacing-3);">
-                            <div class="card-content">
-                                <p class="stat-label" style="font-size: 0.8rem;">Total Attempts</p>
-                                <p class="stat-value" id="metric-total-attempts" style="font-size: 1.5rem;">0</p>
-                            </div>
-                        </div>
-                        <div class="stat-card" style="background-color: var(--color-secondary); padding: var(--spacing-3);">
-                            <div class="card-content">
-                                <p class="stat-label" style="font-size: 0.8rem;">Hits</p>
-                                <p class="stat-value" id="metric-hits" style="font-size: 1.5rem; color: var(--color-success);">0</p>
-                            </div>
-                        </div>
-                        <div class="stat-card" style="background-color: var(--color-secondary); padding: var(--spacing-3);">
-                            <div class="card-content">
-                                <p class="stat-label" style="font-size: 0.8rem;">Elapsed Time</p>
-                                <p class="stat-value" id="metric-elapsed-time" style="font-size: 1.5rem;">00:00:00</p>
-                            </div>
-                        </div>
-                         <div class="stat-card" style="background-color: var(--color-secondary); padding: var(--spacing-3);">
-                            <div class="card-content">
-                                <p class="stat-label" style="font-size: 0.8rem;">ETA</p>
-                                <p class="stat-value" id="metric-eta" style="font-size: 1.5rem;">--:--:--</p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div id="live-feed-container" style="background-color: var(--color-background); border: 1px solid var(--color-border); border-radius: var(--border-radius-md); padding: var(--spacing-4); height: 400px; overflow-y: auto; font-family: monospace; font-size: 0.9rem;">
-                        <p>[INFO] Awaiting attack initiation...</p>
-                        <!-- Live feed messages will be appended here -->
-                    </div>
-                </div>
-            </section>
         </main>
     </div>
 
@@ -347,6 +190,6 @@
         <symbol id="icon-download" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4m4-5l5 5l5-5m-5 5V3"/></symbol>
     </svg>
 
-    <script src="{{ url_for('static', filename='script.js') }}"></script>
+    <script src="script.js"></script>
 </body>
 </html>

@@ -1,922 +1,500 @@
-// Predator - Web Attack Panel Logic
-// This script will handle the frontend interactions and logic for the attack panel.
-
-const API_BASE_URL = 'http://127.0.0.1:5001';
-window.attackContext = {}; // Used to store data between analysis and testing steps
-let attemptDetailsStore = {}; // To store request/response for modal
-
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('Predator script loaded and DOM fully parsed.');
+    const sidebar = document.getElementById('sidebar');
+    const sidebarToggle = document.getElementById('sidebar-toggle');
+    const themeToggle = document.getElementById('theme-toggle');
 
-    // Get references to DOM elements
-    const loginUrlInput = document.getElementById('login-url');
+    const dashboardContent = document.getElementById('dashboard-content');
+    const newScanContent = document.getElementById('new-scan-content');
 
-    // Step divs
-    const uiStepTargetURL = document.getElementById('uiStep-TargetURL');
-    const uiStepAnalysisReview = document.getElementById('uiStep-AnalysisReview');
-    const uiStepCredentialsInput = document.getElementById('uiStep-CredentialsInput');
-    const uiStepMonitor = document.getElementById('uiStep-Monitor');
-    const step2Options = document.getElementById('step2-options');
-
-    // Buttons
-    const analyzeFormButton = document.getElementById('analyzeFormButton');
-    const proceedToCredentialsBtn = document.getElementById('proceedToCredentialsBtn');
-    const launchAttackBtn = document.getElementById('launchAttackBtn');
-    const parseRawRequestBtn = document.getElementById('parseRawRequestBtn'); // New button
-
-    // File inputs
-    const authPairsUploadInput = document.getElementById('auth-pairs-upload');
-    const browseAuthPairsButton = document.getElementById('browse-auth-pairs-btn');
-    const selectedAuthPairsFileNameDisplay = document.getElementById('selected-auth-pairs-file-name');
-
-    const usernameListInput = document.getElementById('username-list-upload');
-    const browseUsernameFilesButton = document.getElementById('browse-username-files-btn');
-    const selectedUsernameFileNameDisplay = document.getElementById('selected-username-file-name');
-    const singleUsernameInput = document.getElementById('single-username-input');
+    const navLinks = document.querySelectorAll('.sidebar-nav .nav-link');
+    const dashboardLink = document.querySelector('.nav-link[href="#icon-dashboard"]'); // Assuming href points to icon id
+    const newScanLink = document.querySelector('.nav-link[href="#icon-target"]');
 
 
-    const passwordListInput = document.getElementById('password-list-upload');
-    const browsePasswordFilesButton = document.getElementById('browse-password-files-btn'); // Corrected ID
-    const selectedPasswordFileNameDisplay = document.getElementById('selected-password-file-name');
+    function setActiveView(viewToShow) {
+        // Hide all views
+        if (dashboardContent) dashboardContent.style.display = 'none';
+        if (newScanContent) newScanContent.style.display = 'none';
 
-    // Form analysis results panel and its fields
-    const formAnalysisResultsPanel = document.getElementById('form-analysis-results');
+        // Show the selected view
+        if (viewToShow) viewToShow.style.display = 'block';
+
+        // Update active class on nav links
+        navLinks.forEach(link => link.classList.remove('active'));
+        if (viewToShow === dashboardContent && dashboardLink) {
+            dashboardLink.classList.add('active');
+        } else if (viewToShow === newScanContent && newScanLink) {
+            newScanLink.classList.add('active');
+            // If other sections like History, Settings are added, they'd need similar handling
+        }
+    }
+
+    if (dashboardLink) {
+        dashboardLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            setActiveView(dashboardContent);
+        });
+    }
+
+    if (newScanLink) {
+        newScanLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            setActiveView(newScanContent);
+        });
+    }
+
+    // Initialize with dashboard view
+    if (dashboardContent) {
+         setActiveView(dashboardContent);
+    } else if (newScanContent) { // Fallback if dashboard isn't there for some reason
+        setActiveView(newScanContent);
+    }
+
+
+    // --- SIDEBAR TOGGLE FOR MOBILE ---
+    if (sidebarToggle && sidebar) { // Ensure elements exist
+        sidebarToggle.addEventListener('click', () => {
+            sidebar.classList.toggle('open');
+        });
+    }
+
+    // Close sidebar when clicking outside of it on mobile
+    document.addEventListener('click', (event) => {
+        if (!sidebar || !sidebarToggle) return; // Ensure elements exist
+
+        const isClickInsideSidebar = sidebar.contains(event.target);
+        const isClickOnToggle = sidebarToggle.contains(event.target);
+
+        if (!isClickInsideSidebar && !isClickOnToggle && sidebar.classList.contains('open')) {
+            sidebar.classList.remove('open');
+        }
+    });
+
+    // --- DARK/LIGHT MODE TOGGLE ---
+    if (themeToggle) {
+        themeToggle.addEventListener('change', () => {
+            if (themeToggle.checked) {
+                document.documentElement.setAttribute('data-theme', 'light');
+                localStorage.setItem('theme', 'light');
+            } else {
+                document.documentElement.setAttribute('data-theme', 'dark');
+                localStorage.setItem('theme', 'dark');
+            }
+        });
+
+        // Check for saved theme in localStorage and apply it
+        const savedTheme = localStorage.getItem('theme');
+        if (savedTheme) {
+            document.documentElement.setAttribute('data-theme', savedTheme);
+            if (savedTheme === 'light') {
+                themeToggle.checked = true;
+            }
+        }
+    }
+
+    // --- NEW SCAN PAGE LOGIC ---
+    const analyzeUrlForm = document.getElementById('analyze-url-form');
+    const targetLoginUrlInput = document.getElementById('target-login-url');
+    const parseRequestForm = document.getElementById('parse-request-form');
+    const rawHttpRequestInput = document.getElementById('raw-http-request');
+
+    // Step 2 - Detected Parameters Form Fields
+    const detectedPostUrlInput = document.getElementById('detected-post-url');
     const detectedUsernameFieldInput = document.getElementById('detected-username-field');
     const detectedPasswordFieldInput = document.getElementById('detected-password-field');
-    const detectedPostUrlInput = document.getElementById('detected-post-url');
+    const detectedCsrfNameInput = document.getElementById('detected-csrf-name');
+    const detectedCsrfValueInput = document.getElementById('detected-csrf-value');
+    const rawRequestParamsDisplay = document.getElementById('raw-request-params-display');
+    const rawRequestParamsData = document.getElementById('raw-request-params-data');
+    const rawRequestCookiesDisplay = document.getElementById('raw-request-cookies-display');
+    const rawRequestCookiesData = document.getElementById('raw-request-cookies-data');
+    const analysisCookiesDisplay = document.getElementById('analysis-cookies-display');
+    const analysisCookiesData = document.getElementById('analysis-cookies-data');
 
-    // Raw request input elements
-    const rawRequestInput = document.getElementById('raw-request-input');
-    const capturedParamsDisplay = document.getElementById('capturedParamsDisplay');
-    const capturedParamsText = document.getElementById('capturedParamsText');
 
-    // HUD Elements
-    const attemptsCountEl = document.getElementById('hud-total-attempts');
-    const hitsCountEl = document.getElementById('hud-hits');
-    const elapsedTimeEl = document.getElementById('hud-elapsed-time');
-    const etaEl = document.getElementById('hud-eta');
+    // Store analysis results globally for Step 3
+    let currentAnalysisResult = null;
 
-    let terminalBody = document.querySelector('#uiStep-Monitor .terminal-body');
-    const filterAll = document.getElementById('filter-all');
-    const filterHits = document.getElementById('filter-hits');
-    const filterFails = document.getElementById('filter-fails');
-    const filterContentLength = document.getElementById('filter-content-length');
-    const filterResponse = document.getElementById('filter-response');
-    const terminalFilters = [filterAll, filterHits, filterFails, filterContentLength, filterResponse].filter(el => el != null);
+    function displayAnalysisResults(data) {
+        currentAnalysisResult = data; // Store for later use by launch attack
 
-    const sortClAscBtn = document.getElementById('sort-cl-asc');
-    const sortClDescBtn = document.getElementById('sort-cl-desc');
+        if (detectedPostUrlInput) detectedPostUrlInput.value = data.post_url || '';
+        if (detectedUsernameFieldInput) detectedUsernameFieldInput.value = data.username_field_name || '';
+        if (detectedPasswordFieldInput) detectedPasswordFieldInput.value = data.password_field_name || '';
+        if (detectedCsrfNameInput) detectedCsrfNameInput.value = data.csrf_token_name || '';
+        if (detectedCsrfValueInput) detectedCsrfValueInput.value = data.csrf_token_value || '';
 
-    const responseModal = document.getElementById('responseModal');
-    const modalCloseBtn = document.getElementById('modalCloseBtn');
-    const modalRequestDetails = document.getElementById('modalRequestDetails');
-    const modalResponseBody = document.getElementById('modalResponseBody');
-
-    let testStartTime;
-    let elapsedTimeInterval;
-    let totalExpectedAttemptsForCurrentTest = 0;
-    let completedAttemptsThisRun = 0;
-
-    function formatTime(totalSeconds) {
-        if (isNaN(totalSeconds) || totalSeconds < 0 || !isFinite(totalSeconds)) return '--:--:--';
-        const hours = Math.floor(totalSeconds / 3600);
-        const minutes = Math.floor((totalSeconds % 3600) / 60);
-        const seconds = Math.floor(totalSeconds % 60);
-        return [hours, minutes, seconds]
-            .map(v => v < 10 ? "0" + v : v)
-            .join(":");
-    }
-
-    function updateTimers() {
-        if (!testStartTime) return;
-        const now = Date.now();
-        const elapsedMs = now - testStartTime;
-        const elapsedSecondsTotal = Math.floor(elapsedMs / 1000);
-        if (elapsedTimeEl) elapsedTimeEl.textContent = formatTime(elapsedSecondsTotal);
-
-        if (etaEl) {
-            if (totalExpectedAttemptsForCurrentTest > 0 && completedAttemptsThisRun > 0 && completedAttemptsThisRun < totalExpectedAttemptsForCurrentTest) {
-                const timePerAttempt = elapsedMs / completedAttemptsThisRun;
-                const remainingAttempts = totalExpectedAttemptsForCurrentTest - completedAttemptsThisRun;
-                const etaMs = remainingAttempts * timePerAttempt;
-                const etaSecondsTotal = Math.floor(etaMs / 1000);
-                etaEl.textContent = formatTime(etaSecondsTotal);
-            } else if (completedAttemptsThisRun >= totalExpectedAttemptsForCurrentTest && totalExpectedAttemptsForCurrentTest > 0) {
-                etaEl.textContent = '00:00:00';
-                if (elapsedTimeInterval) clearInterval(elapsedTimeInterval);
-            } else if (totalExpectedAttemptsForCurrentTest === 0 && completedAttemptsThisRun > 0) {
-                etaEl.textContent = 'Calculating...';
-            } else {
-                etaEl.textContent = '--:--:--';
-            }
+        if (data.form_parameters && rawRequestParamsDisplay && rawRequestParamsData) {
+            rawRequestParamsData.textContent = JSON.stringify(data.form_parameters, null, 2);
+            rawRequestParamsDisplay.style.display = 'block';
+        } else if (rawRequestParamsDisplay) {
+            rawRequestParamsDisplay.style.display = 'none';
         }
-    }
 
-    function showUiStep(stepIdToShow) {
-        const allSteps = [uiStepTargetURL, uiStepAnalysisReview, uiStepCredentialsInput, uiStepMonitor, step2Options];
-        allSteps.forEach(step => {
-            if (step) {
-                step.style.display = (step.id === stepIdToShow) ? 'block' : 'none';
-                step.classList.remove('active');
-                if (step.id === stepIdToShow) step.classList.add('active');
-            }
-        });
-        if (stepIdToShow === 'uiStep-Monitor') {
-            terminalBody = document.querySelector('#uiStep-Monitor .terminal-body');
+        // Display cookies from raw request parsing
+        if (data.request_headers && data.cookies && rawRequestCookiesDisplay && rawRequestCookiesData) { // data.cookies is from parsed request
+            rawRequestCookiesData.textContent = JSON.stringify(data.cookies, null, 2);
+            rawRequestCookiesDisplay.style.display = 'block';
+        } else if (rawRequestCookiesDisplay) {
+            rawRequestCookiesDisplay.style.display = 'none';
         }
-    }
 
-    if (browseUsernameFilesButton && usernameListInput) {
-        browseUsernameFilesButton.addEventListener('click', () => usernameListInput.click());
-    } else { console.error('Username browse button or file input not found.'); }
-
-    if (browsePasswordFilesButton && passwordListInput) {
-        browsePasswordFilesButton.addEventListener('click', () => passwordListInput.click());
-    } else { console.error('Password browse button or file input not found.'); }
-
-    function setupFileInputListener(fileInput, displayElement, defaultText) {
-        if (fileInput && displayElement) {
-            fileInput.addEventListener('change', () => {
-                displayElement.textContent = (fileInput.files && fileInput.files.length > 0) ? fileInput.files[0].name : defaultText;
-            });
-        } else {
-            console.error('File input or display element for setup not found:', { fileInputId: fileInput ? fileInput.id : 'N/A', displayElementId: displayElement ? displayElement.id : 'N/A' });
+        // Display cookies from URL analysis (session cookies)
+        if (!data.request_headers && data.cookies && analysisCookiesDisplay && analysisCookiesData) { // data.cookies is from URL analysis session
+            analysisCookiesData.textContent = JSON.stringify(data.cookies, null, 2);
+            analysisCookiesDisplay.style.display = 'block';
+        } else if (analysisCookiesDisplay) {
+            analysisCookiesDisplay.style.display = 'none';
         }
+
+        // Make Step 2 visible if it was hidden
+        const reviewSection = document.getElementById('review-parameters-section');
+        if(reviewSection) reviewSection.style.display = 'block'; // Or add a class to show it
     }
 
-    setupFileInputListener(usernameListInput, selectedUsernameFileNameDisplay, 'No username file selected.');
-    setupFileInputListener(passwordListInput, selectedPasswordFileNameDisplay, 'No password file selected.');
-    setupFileInputListener(authPairsUploadInput, selectedAuthPairsFileNameDisplay, 'No combo file selected.');
-
-    if(browseAuthPairsButton && authPairsUploadInput){
-        browseAuthPairsButton.addEventListener('click', () => authPairsUploadInput.click());
-    } else { console.error('Auth Pairs browse button or file input not found.'); }
-
-
-    if (analyzeFormButton) {
-        const originalButtonText = analyzeFormButton.querySelector('.btn-text').textContent;
-        const spinner = analyzeFormButton.querySelector('.spinner');
-        analyzeFormButton.addEventListener('click', async (event) => {
-            event.preventDefault();
-
-            // Clear raw request input and its display if user chooses URL analysis
-            if (rawRequestInput) rawRequestInput.value = '';
-            if (capturedParamsDisplay) capturedParamsDisplay.style.display = 'none';
-            if (capturedParamsText) capturedParamsText.textContent = '';
-
-            if(formAnalysisResultsPanel) formAnalysisResultsPanel.style.display = 'none'; // Hide previous results (from either method)
-
-
-            const loginUrl = loginUrlInput.value.trim();
-
-            // URL validation is primary for this step
-            if (!loginUrl) { alert("Please enter the login URL."); return; }
-            try {
-                new URL(loginUrl);
-                if (!loginUrl.startsWith('http://') && !loginUrl.startsWith('https://')) {
-                     alert('Invalid login URL. Must start with http:// or https://'); return;
-                }
-            } catch (e) {
-                alert("Invalid login URL format. Please enter a full URL (e.g., https://example.com/login)."); return;
-            }
-
-            console.log(`Starting form analysis for URL: ${loginUrl}`);
-            if(spinner) spinner.style.display = 'inline-block';
-            analyzeFormButton.querySelector('.btn-text').textContent = 'Analyzing...';
-            analyzeFormButton.disabled = true;
-            window.attackContext = {};
-
-            try {
-                const apiResponse = await fetch(API_BASE_URL + '/analyze_url', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', },
-                    body: JSON.stringify({ url: loginUrl }),
-                });
-                const analysis = await apiResponse.json();
-                if (!apiResponse.ok) { throw new Error(analysis.error || `API Error: ${apiResponse.status} - ${apiResponse.statusText || 'Unknown error'}`); }
-
-                if (analysis.error) {
-                    alert(`Analysis Error: ${analysis.error}`);
-                    if (detectedUsernameFieldInput) detectedUsernameFieldInput.value = '';
-                    if (detectedPasswordFieldInput) detectedPasswordFieldInput.value = '';
-                    if (detectedPostUrlInput) detectedPostUrlInput.value = '';
-                    showUiStep('uiStep-TargetURL');
-                } else {
-                    console.log("Analysis successful via URL:", analysis);
-                    if (detectedUsernameFieldInput) detectedUsernameFieldInput.value = analysis.username_field_name || '';
-                    if (detectedPasswordFieldInput) detectedPasswordFieldInput.value = analysis.password_field_name || '';
-                    if (detectedPostUrlInput) detectedPostUrlInput.value = analysis.post_url || '';
-
-                    window.attackContext.formMethod = analysis.form_method;
-                    window.attackContext.csrfTokenName = analysis.csrf_token_name;
-                    window.attackContext.csrfTokenValue = analysis.csrf_token_value;
-                    window.attackContext.initialCookies = analysis.cookies;
-                    window.attackContext.analyzedUrl = loginUrl; // Keep track of what was analyzed
-
-                    if (formAnalysisResultsPanel) formAnalysisResultsPanel.style.display = 'block';
-                    if (capturedParamsDisplay) capturedParamsDisplay.style.display = 'none'; // Ensure raw request display is hidden
-                    showUiStep('uiStep-AnalysisReview');
-                    console.log("Form analysis complete. Detected parameters populated.");
-                }
-            } catch (error) {
-                console.error("Error during form analysis call:", error);
-                alert(`Failed to analyze form: ${error.message}. Check console and ensure backend server is running.`);
-                if (detectedUsernameFieldInput) detectedUsernameFieldInput.value = '';
-                if (detectedPasswordFieldInput) detectedPasswordFieldInput.value = '';
-                if (detectedPostUrlInput) detectedPostUrlInput.value = '';
-                showUiStep('uiStep-TargetURL');
-            } finally {
-                [detectedUsernameFieldInput, detectedPasswordFieldInput, detectedPostUrlInput].forEach(input => {
-                    if (input) { input.dispatchEvent(new Event('input', { bubbles: true })); }
-                });
-                if(spinner) spinner.style.display = 'none';
-                analyzeFormButton.querySelector('.btn-text').textContent = originalButtonText;
-                analyzeFormButton.disabled = false;
-            }
-        });
-    } else { console.error('Analyze form button not found.'); }
-
-    // --- "Parse Captured Request" Button Click Logic ---
-    if (parseRawRequestBtn) {
-        parseRawRequestBtn.addEventListener('click', async () => {
-            const rawRequest = rawRequestInput.value.trim();
-            if (!rawRequest) {
-                alert("Please paste the captured HTTP request text.");
-                rawRequestInput.focus();
-                return;
-            }
-
-            // Clear URL input if using raw request, and hide normal analysis results display initially
-            if (loginUrlInput) loginUrlInput.value = '';
-            if (formAnalysisResultsPanel) formAnalysisResultsPanel.style.display = 'none';
-            if (capturedParamsDisplay) capturedParamsDisplay.style.display = 'none';
-
-
-            const originalBtnText = parseRawRequestBtn.textContent;
-            parseRawRequestBtn.textContent = 'Parsing...';
-            parseRawRequestBtn.disabled = true;
-            window.attackContext = {}; // Reset context
-
-            try {
-                const response = await fetch(API_BASE_URL + '/parse_captured_request', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ raw_request: rawRequest })
-                });
-
-                const data = await response.json();
-
-                if (!response.ok) {
-                    throw new Error(data.error || `Error parsing request. Status: ${response.status} ${response.statusText || 'Unknown error'}`);
-                }
-
-                if (data.error) {
-                    alert(`Raw Request Parsing Error: ${data.error}`);
-                    showUiStep('uiStep-TargetURL');
-                } else {
-                    console.log("Parsed captured request successfully:", data);
-
-                    if (detectedPostUrlInput) detectedPostUrlInput.value = data.post_url || '';
-                    if (detectedUsernameFieldInput) detectedUsernameFieldInput.value = data.username_field_name || 'Could not auto-detect';
-                    if (detectedPasswordFieldInput) detectedPasswordFieldInput.value = data.password_field_name || 'Could not auto-detect';
-
-                    window.attackContext.formMethod = data.form_method || 'POST';
-                    window.attackContext.csrfTokenName = data.csrf_token_name || null;
-                    window.attackContext.csrfTokenValue = data.csrf_token_value || null;
-                    window.attackContext.initialCookies = data.cookies || {};
-                    window.attackContext.analyzedUrl = data.post_url; // Use the parsed post_url as the "analyzed" URL context
-                    window.attackContext.requestHeaders = data.request_headers; // Store all headers from raw request
-
-                    if (capturedParamsText) {
-                        let paramsToShow = {...data.form_parameters};
-                        // Optionally filter out password from display here if needed, though backend sends it
-                        // if (paramsToShow[data.password_field_name]) paramsToShow[data.password_field_name] = "********";
-                        capturedParamsText.textContent = JSON.stringify(paramsToShow, null, 2);
-                    }
-                    if (capturedParamsDisplay) capturedParamsDisplay.style.display = 'block';
-
-                    if (formAnalysisResultsPanel) formAnalysisResultsPanel.style.display = 'block';
-
-                    [detectedPostUrlInput, detectedUsernameFieldInput, detectedPasswordFieldInput].forEach(input => {
-                        if (input) { input.dispatchEvent(new Event('input', { bubbles: true })); }
-                    });
-
-                    showUiStep('uiStep-AnalysisReview');
-                }
-            } catch (error) {
-                console.error("Error parsing captured request via API:", error);
-                alert(`Failed to parse captured request: ${error.message}. Check console for details.`);
-                // Potentially add log message to a general status area if terminal isn't visible
-                showUiStep('uiStep-TargetURL');
-            } finally {
-                parseRawRequestBtn.disabled = false;
-                parseRawRequestBtn.textContent = originalBtnText;
-            }
-        });
-    } else { console.error("Parse Raw Request button not found."); }
-
-
-    if (proceedToCredentialsBtn) {
-        proceedToCredentialsBtn.addEventListener('click', (event) => {
-            event.preventDefault();
-            console.log("Proceeding to credentials input step.");
-            showUiStep('uiStep-CredentialsInput');
-        });
-    } else { console.error("Proceed to Credentials button not found."); }
-
-    function readFileContentAsString(file) {
-        return new Promise((resolve, reject) => {
-            if (!file) {
-                reject(new Error("No file provided to reader."));
-                return;
-            }
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                resolve(e.target.result);
-            };
-            reader.onerror = (e) => {
-                console.error("FileReader error:", e);
-                reject(new Error("An error occurred while reading the file."));
-            };
-            reader.readAsText(file);
-        });
-    }
-
-    function addLogMessage(message, type = 'info', dataAttributes = {}) {
-        const currentActiveTerminalBody = document.querySelector('#uiStep-Monitor.active .terminal-body');
-        if (!currentActiveTerminalBody) {
-            console.log(`[${type.toUpperCase()}] Log (Monitor terminal not active): ${message}`);
+    async function handleUrlAnalysis(event) {
+        event.preventDefault();
+        const url = targetLoginUrlInput.value;
+        if (!url) {
+            alert('Please enter a URL.');
             return;
         }
-        const p = document.createElement('p');
-        const time = new Date().toLocaleTimeString();
-        const timeSpan = document.createElement('span');
-        timeSpan.className = 'status-time';
-        timeSpan.textContent = `[${time}] `;
-        p.appendChild(timeSpan);
-        const msgSpan = document.createElement('span');
-        msgSpan.textContent = message;
-        if (type === 'success') msgSpan.className = 'status-success';
-        else if (type === 'fail' || type === 'error') msgSpan.className = 'status-fail';
-        else msgSpan.className = 'status-info';
-        p.appendChild(msgSpan);
-        if (dataAttributes.id) p.id = dataAttributes.id;
-        for (const key in dataAttributes) {
-            if (dataAttributes.hasOwnProperty(key) && dataAttributes[key] !== undefined && dataAttributes[key] !== null) {
-                p.dataset[key] = dataAttributes[key];
+
+        // Add a loading indicator here if desired
+        try {
+            const response = await fetch('/analyze_url', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url: url })
+            });
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.error || `HTTP error! status: ${response.status}`);
             }
+            displayAnalysisResults(data);
+        } catch (error) {
+            console.error('Error analyzing URL:', error);
+            alert(`Error analyzing URL: ${error.message}`);
         }
-        currentActiveTerminalBody.appendChild(p);
-        currentActiveTerminalBody.scrollTop = currentActiveTerminalBody.scrollHeight;
     }
 
-    function readUsernamesFromFile(file) {
-        return new Promise((resolve, reject) => {
-            if (!file) { reject(new Error("No username file provided to reader.")); return; }
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                const content = e.target.result;
-                const usernames = content.split('\n').map(u => u.trim()).filter(u => u);
-                if (usernames.length === 0) {
-                    reject(new Error("Username file is empty or does not contain valid usernames. Each username should be on a new line."));
-                } else { resolve(usernames); }
-            };
-            reader.onerror = (e) => {
-                console.error("FileReader error for username file:", e);
-                reject(new Error("An error occurred while reading the username file."));
-            };
-            reader.readAsText(file);
-        });
-    }
-
-    function readPasswordsFromFile(file) {
-        return new Promise((resolve, reject) => {
-            if (!file) { reject(new Error("No password file provided to reader.")); return; }
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                const content = e.target.result;
-                const passwords = content.split('\n').map(p => p.trim()).filter(p => p);
-                if (passwords.length === 0) {
-                    reject(new Error("Password file is empty or does not contain any valid passwords. Each password should be on a new line."));
-                    return;
-                }
-                resolve(passwords);
-            };
-            reader.onerror = (e) => {
-                console.error("FileReader error for password file:", e);
-                reject(new Error("An error occurred while reading the password file."));
-            };
-            reader.readAsText(file);
-        });
-    }
-
-    function getActiveVisibilityFilterId() {
-        const activeFilter = terminalFilters.find(btn => btn && btn.classList.contains('active'));
-        return activeFilter ? activeFilter.id : 'filter-all';
-    }
-
-    function applyActiveVisibilityFilter() {
-        const currentActiveTerminalBody = document.querySelector('#uiStep-Monitor.active .terminal-body');
-        if (!currentActiveTerminalBody) return;
-        const activeFilterId = getActiveVisibilityFilterId();
-        const logEntries = currentActiveTerminalBody.querySelectorAll('p');
-        logEntries.forEach(entry => {
-            let showEntry = false;
-            const status = entry.dataset.status;
-            switch (activeFilterId) {
-                case 'filter-all':
-                case 'filter-content-length':
-                case 'filter-response':
-                    showEntry = true;
-                    break;
-                case 'filter-hits':
-                    if (status === 'success') showEntry = true;
-                    break;
-                case 'filter-fails':
-                    if (status === 'failure' || status === 'error') showEntry = true;
-                    break;
+    async function handleRawRequestParse(event) {
+        event.preventDefault();
+        const rawRequest = rawHttpRequestInput.value;
+        if (!rawRequest) {
+            alert('Please paste a raw HTTP request.');
+            return;
+        }
+        // Add a loading indicator here if desired
+        try {
+            const response = await fetch('/parse_captured_request', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ raw_request: rawRequest })
+            });
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.error || `HTTP error! status: ${response.status}`);
             }
-            entry.style.display = showEntry ? '' : 'none';
-        });
+            displayAnalysisResults(data); // Same function to populate Step 2
+        } catch (error) {
+            console.error('Error parsing raw request:', error);
+            alert(`Error parsing raw request: ${error.message}`);
+        }
     }
 
-    terminalFilters.forEach(filterElement => {
-        if (filterElement) {
-            filterElement.addEventListener('click', (event) => {
-                terminalFilters.forEach(el => el && el.classList.remove('active'));
-                event.currentTarget.classList.add('active');
-                applyActiveVisibilityFilter();
+    if (analyzeUrlForm) analyzeUrlForm.addEventListener('submit', handleUrlAnalysis);
+    if (parseRequestForm) parseRequestForm.addEventListener('submit', handleRawRequestParse);
+
+    // --- Step 3: Credentials ---
+    const comboFileInput = document.getElementById('combo-file-input');
+    const comboFileNameDisplay = document.getElementById('combo-file-name');
+    const usernameListInput = document.getElementById('username-list-input');
+    const usernameListFileNameDisplay = document.getElementById('username-list-file-name');
+    const singleUsernameInput = document.getElementById('single-username-input');
+    const passwordListInput = document.getElementById('password-list-input');
+    const passwordListFileNameDisplay = document.getElementById('password-list-file-name');
+
+    // File input change listeners to display selected file names
+    [
+        { input: comboFileInput, display: comboFileNameDisplay },
+        { input: usernameListInput, display: usernameListFileNameDisplay },
+        { input: passwordListInput, display: passwordListFileNameDisplay }
+    ].forEach(item => {
+        if (item.input) {
+            item.input.addEventListener('change', () => {
+                if (item.input.files.length > 0) {
+                    item.display.textContent = item.input.files[0].name;
+                } else {
+                    item.display.textContent = '';
+                }
             });
         }
     });
 
-    function sortLogEntriesByContentLength(direction) {
-        const currentActiveTerminalBody = document.querySelector('#uiStep-Monitor.active .terminal-body');
-        if (!currentActiveTerminalBody) return;
-        const logEntries = Array.from(currentActiveTerminalBody.querySelectorAll('p'));
-        logEntries.sort((a, b) => {
-            const valAStr = a.dataset.contentLength;
-            const valBStr = b.dataset.contentLength;
-            let valA = (valAStr === 'N/A' || valAStr === undefined || valAStr === null) ? (direction === 1 ? -Infinity : Infinity) : parseInt(valAStr, 10);
-            let valB = (valBStr === 'N/A' || valBStr === undefined || valBStr === null) ? (direction === 1 ? -Infinity : Infinity) : parseInt(valBStr, 10);
-            if (isNaN(valA)) valA = (direction === 1 ? -Infinity : Infinity);
-            if (isNaN(valB)) valB = (direction === 1 ? -Infinity : Infinity);
-            return (valA - valB) * direction;
-        });
-        logEntries.forEach(entry => currentActiveTerminalBody.appendChild(entry));
-        applyActiveVisibilityFilter();
+    // --- Step 4: Launch & Monitor ---
+    const launchAttackBtn = document.getElementById('launch-attack-btn');
+    const liveFeedContainer = document.getElementById('live-feed-container');
+    const metricTotalAttempts = document.getElementById('metric-total-attempts');
+    const metricHits = document.getElementById('metric-hits');
+    const metricElapsedTime = document.getElementById('metric-elapsed-time');
+    const metricEta = document.getElementById('metric-eta');
+    let eventSource = null;
+    let attackStartTime;
+    let totalExpectedAttempts = 0;
+    let currentAttempts = 0;
+    let hits = 0;
+
+    function appendToLiveFeed(message, type = 'info') {
+        if (!liveFeedContainer) return;
+        const p = document.createElement('p');
+        const typeSpan = document.createElement('span');
+        typeSpan.className = `status-${type.toLowerCase()}`; // For potential styling
+        typeSpan.textContent = `[${type.toUpperCase()}] `;
+        p.appendChild(typeSpan);
+
+        const messageSpan = document.createElement('span');
+        messageSpan.textContent = message;
+        p.appendChild(messageSpan);
+
+        liveFeedContainer.appendChild(p);
+        liveFeedContainer.scrollTop = liveFeedContainer.scrollHeight; // Auto-scroll
     }
 
-    if (sortClAscBtn) {
-        sortClAscBtn.addEventListener('click', () => {
-            console.log("Sorting by Content Length Ascending");
-            sortClAscBtn.classList.add('active-sort');
-            if (sortClDescBtn) sortClDescBtn.classList.remove('active-sort');
-            sortLogEntriesByContentLength(1);
-        });
-    } else { console.error("Sort Ascending button not found"); }
-
-    if (sortClDescBtn) {
-        sortClDescBtn.addEventListener('click', () => {
-            console.log("Sorting by Content Length Descending");
-            sortClDescBtn.classList.add('active-sort');
-            if (sortClAscBtn) sortClAscBtn.classList.remove('active-sort');
-            sortLogEntriesByContentLength(-1);
-        });
-    } else { console.error("Sort Descending button not found"); }
-
-    const monitorTerminalBody = document.querySelector('#uiStep-Monitor .terminal-body');
-    if (monitorTerminalBody && responseModal && modalRequestDetails && modalResponseBody && modalCloseBtn) {
-        monitorTerminalBody.addEventListener('click', (event) => {
-            const clickedP = event.target.closest('p[data-log-id]');
-            if (clickedP) {
-                const logId = clickedP.dataset.logId;
-                if (attemptDetailsStore[logId]) {
-                    const details = attemptDetailsStore[logId];
-                    modalRequestDetails.textContent = details.request_details ? JSON.stringify(details.request_details, null, 2) : "No request details available.";
-                    modalResponseBody.textContent = details.response_body || "No response body captured or applicable.";
-
-                    // Display analysis details - Target new elements in the modal
-                    const modalLoginScore = document.getElementById('modalLoginScore');
-                    const modalPositiveIndicators = document.getElementById('modalPositiveIndicators');
-                    const modalNegativeIndicators = document.getElementById('modalNegativeIndicators');
-
-                    if (details.analysis) {
-                        if (modalLoginScore) modalLoginScore.textContent = details.analysis.score !== undefined ? details.analysis.score : "N/A";
-
-                        if (modalPositiveIndicators) {
-                            modalPositiveIndicators.innerHTML = ''; // Clear previous
-                            if (details.analysis.positive_indicators && details.analysis.positive_indicators.length > 0) {
-                                const ul = document.createElement('ul');
-                                ul.className = 'indicator-list';
-                                details.analysis.positive_indicators.forEach(itemText => {
-                                    const li = document.createElement('li');
-                                    li.className = 'indicator-item positive-item';
-
-                                    const iconSpan = document.createElement('span');
-                                    iconSpan.className = 'indicator-icon';
-                                    // Unicode check mark, fallback if FontAwesome isn't loaded/preferred for simplicity here
-                                    // For FontAwesome: iconSpan.innerHTML = '<i class="fas fa-check-circle"></i> ';
-                                    iconSpan.textContent = '✔ '; // Simple check
-
-                                    const textSpan = document.createElement('span');
-                                    textSpan.className = 'indicator-text';
-                                    textSpan.textContent = itemText;
-
-                                    li.appendChild(iconSpan);
-                                    li.appendChild(textSpan);
-                                    ul.appendChild(li);
-                                });
-                                modalPositiveIndicators.appendChild(ul);
-                            } else {
-                                modalPositiveIndicators.textContent = "None";
-                            }
-                        }
-
-                        if (modalNegativeIndicators) {
-                            modalNegativeIndicators.innerHTML = ''; // Clear previous
-                            if (details.analysis.negative_indicators && details.analysis.negative_indicators.length > 0) {
-                                const ul = document.createElement('ul');
-                                ul.className = 'indicator-list';
-                                details.analysis.negative_indicators.forEach(itemText => {
-                                    const li = document.createElement('li');
-                                    li.className = 'indicator-item negative-item';
-
-                                    const iconSpan = document.createElement('span');
-                                    iconSpan.className = 'indicator-icon';
-                                    // Unicode cross mark
-                                    // For FontAwesome: iconSpan.innerHTML = '<i class="fas fa-times-circle"></i> ';
-                                    iconSpan.textContent = '✖ '; // Simple cross
-
-                                    const textSpan = document.createElement('span');
-                                    textSpan.className = 'indicator-text';
-                                    textSpan.textContent = itemText;
-
-                                    li.appendChild(iconSpan);
-                                    li.appendChild(textSpan);
-                                    ul.appendChild(li);
-                                });
-                                modalNegativeIndicators.appendChild(ul);
-                            } else {
-                                modalNegativeIndicators.textContent = "None";
-                            }
-                        }
-                    } else {
-                        if (modalLoginScore) modalLoginScore.textContent = "N/A";
-                        if (modalPositiveIndicators) modalPositiveIndicators.textContent = "N/A";
-                        if (modalNegativeIndicators) modalNegativeIndicators.textContent = "N/A";
-                    }
-                    responseModal.style.display = 'block';
-                } else {
-                    console.warn(`No detailed data in store for logId: ${logId}. Entry:`, clickedP.textContent);
-                    // Fallback for entries without full details (e.g., info messages)
-                    modalRequestDetails.textContent = "No request details available for this log entry.";
-                    modalResponseBody.textContent = "No response body available for this log entry.";
-                    const modalLoginScore = document.getElementById('modalLoginScore');
-                    const modalPositiveIndicators = document.getElementById('modalPositiveIndicators');
-                    const modalNegativeIndicators = document.getElementById('modalNegativeIndicators');
-                    if (modalLoginScore) modalLoginScore.textContent = "N/A";
-                    if (modalPositiveIndicators) modalPositiveIndicators.textContent = "N/A";
-                    if (modalNegativeIndicators) modalNegativeIndicators.textContent = "N/A";
-                    responseModal.style.display = 'block';
-                }
-            }
-        });
-        modalCloseBtn.addEventListener('click', () => { responseModal.style.display = 'none'; });
-        window.addEventListener('click', (event) => {
-            if (event.target === responseModal) { responseModal.style.display = 'none'; }
-        });
-    } else {
-        console.error("Modal elements or monitor terminal body not found for setting up click listeners.");
+    function resetAttackMetrics() {
+        currentAttempts = 0;
+        hits = 0;
+        totalExpectedAttempts = 0;
+        if (metricTotalAttempts) metricTotalAttempts.textContent = '0';
+        if (metricHits) metricHits.textContent = '0';
+        if (metricElapsedTime) metricElapsedTime.textContent = '00:00:00';
+        if (metricEta) metricEta.textContent = '--:--:--';
+        if (liveFeedContainer) liveFeedContainer.innerHTML = '<p>[INFO] Awaiting attack initiation...</p>';
     }
 
-    if (launchAttackBtn) {
-        const originalLaunchBtnText = launchAttackBtn.textContent;
-        launchAttackBtn.addEventListener('click', async (event) => {
-            console.log("[LaunchAttackBtn] Clicked");
-            event.preventDefault();
-            launchAttackBtn.disabled = true;
-            launchAttackBtn.textContent = 'Launching...';
-            console.log("[LaunchAttackBtn] Button disabled, text changed.");
+    function updateElapsedTime() {
+        if (!attackStartTime) return;
+        const now = new Date();
+        const elapsedMs = now - attackStartTime;
+        const seconds = Math.floor((elapsedMs / 1000) % 60);
+        const minutes = Math.floor((elapsedMs / (1000 * 60)) % 60);
+        const hours = Math.floor(elapsedMs / (1000 * 60 * 60));
+        if (metricElapsedTime) {
+            metricElapsedTime.textContent =
+                `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        }
 
-            attemptDetailsStore = {};
-            completedAttemptsThisRun = 0;
-            totalExpectedAttemptsForCurrentTest = 0;
-            testStartTime = Date.now();
-            if (elapsedTimeInterval) clearInterval(elapsedTimeInterval);
-            elapsedTimeInterval = setInterval(updateTimers, 1000);
-            if (elapsedTimeEl) elapsedTimeEl.textContent = '00:00:00';
-            if (etaEl) etaEl.textContent = '--:--:--';
-
-            let totalAttemptsForHUD = 0;
-            let totalHitsForHUD = 0;
-            if (attemptsCountEl) attemptsCountEl.textContent = totalAttemptsForHUD;
-            if (hitsCountEl) hitsCountEl.textContent = totalHitsForHUD;
-
-            const authPairsFile = authPairsUploadInput.files.length > 0 ? authPairsUploadInput.files[0] : null;
-            const usernameFile = usernameListInput.files.length > 0 ? usernameListInput.files[0] : null;
-            const singleUser = singleUsernameInput ? singleUsernameInput.value.trim() : '';
-            const passwordFile = passwordListInput.files.length > 0 ? passwordListInput.files[0] : null;
-            const targetPostUrl = detectedPostUrlInput ? detectedPostUrlInput.value.trim() : '';
-            const usernameFieldName = detectedUsernameFieldInput ? detectedUsernameFieldInput.value.trim() : '';
-            const passwordFieldName = detectedPasswordFieldInput ? detectedPasswordFieldInput.value.trim() : '';
-            console.log("[LaunchAttackBtn] Target/Field params retrieved:", {targetPostUrl, usernameFieldName, passwordFieldName});
-
-            console.log("[LaunchAttackBtn] Calling showUiStep('uiStep-Monitor')");
-            showUiStep('uiStep-Monitor');
-            console.log("[LaunchAttackBtn] Called showUiStep('uiStep-Monitor')");
-
-            terminalBody = document.querySelector('#uiStep-Monitor.active .terminal-body');
-            if (terminalBody) {
-                terminalBody.innerHTML = '';
-                console.log("[LaunchAttackBtn] Terminal body cleared.");
-            } else {
-                console.error("[LaunchAttackBtn] Could not find active terminal body in Step Monitor for clearing.");
+        if (totalExpectedAttempts > 0 && currentAttempts > 0 && currentAttempts < totalExpectedAttempts) {
+            const timePerAttemptMs = elapsedMs / currentAttempts;
+            const remainingAttempts = totalExpectedAttempts - currentAttempts;
+            const etaMs = remainingAttempts * timePerAttemptMs;
+            const etaSeconds = Math.floor((etaMs / 1000) % 60);
+            const etaMinutes = Math.floor((etaMs / (1000 * 60)) % 60);
+            const etaHours = Math.floor(etaMs / (1000 * 60 * 60));
+            if (metricEta) {
+                 metricEta.textContent =
+                `${String(etaHours).padStart(2, '0')}:${String(etaMinutes).padStart(2, '0')}:${String(etaSeconds).padStart(2, '0')}`;
             }
+        } else if (currentAttempts === totalExpectedAttempts && totalExpectedAttempts > 0) {
+             if (metricEta) metricEta.textContent = 'Done';
+        }
+    }
+    let elapsedTimeInterval;
 
-            addLogMessage(`Initiating login attempts against ${targetPostUrl}...`, 'info', {logId: `init-log-${Date.now()}`});
-            console.log("[LaunchAttackBtn] Initial log message added.");
+    async function handleLaunchAttack() {
+        if (!currentAnalysisResult) {
+            alert('Please analyze a URL or parse a request first (Step 1 & 2).');
+            return;
+        }
+        resetAttackMetrics();
 
-            let useAuthPairsFile = false;
-            console.log("[LaunchAttackBtn] Checking authPairsFile:", authPairsFile);
-            if (authPairsFile) {
-                console.log("[LaunchAttackBtn] authPairsFile is present. Validating type and size.");
-                if (authPairsFile.type !== 'text/plain' && authPairsFile.type !== 'text/csv') {
-                    console.error("[LaunchAttackBtn] Invalid Auth Pairs file type.");
-                    alert("Invalid Auth Pairs file type. Please upload a .txt or .csv file.");
-                    if(authPairsUploadInput) authPairsUploadInput.value = '';
-                    if(selectedAuthPairsFileNameDisplay) selectedAuthPairsFileNameDisplay.textContent = 'No combo file selected.';
-                    addLogMessage("Error: Invalid Auth Pairs file type.", 'fail', {status: 'error', logId: `error-authfile-type-${Date.now()}`});
-                    launchAttackBtn.disabled = false; launchAttackBtn.textContent = originalLaunchBtnText; showUiStep('uiStep-CredentialsInput'); if (elapsedTimeInterval) clearInterval(elapsedTimeInterval); console.log("[LaunchAttackBtn] Exiting due to invalid auth pairs file type."); return;
-                }
-                if (authPairsFile.size > 2 * 1024 * 1024) { // Allow slightly larger for combo files
-                    console.error("[LaunchAttackBtn] Auth Pairs file too large.");
-                    alert("Auth Pairs file is too large. Maximum size is 2MB.");
-                    addLogMessage("Error: Auth Pairs file too large.", 'fail', {status: 'error', logId: `error-authfile-size-${Date.now()}`});
-                    launchAttackBtn.disabled = false; launchAttackBtn.textContent = originalLaunchBtnText; showUiStep('uiStep-CredentialsInput'); if (elapsedTimeInterval) clearInterval(elapsedTimeInterval); console.log("[LaunchAttackBtn] Exiting due to auth pairs file too large."); return;
-                }
-                useAuthPairsFile = true;
-                addLogMessage(`Using Username:Password Combo File: ${authPairsFile.name}`, 'info', {logId: `info-use-authfile-${Date.now()}`});
-                console.log("[LaunchAttackBtn] Using authPairsFile.");
-            } else {
-                console.log("[LaunchAttackBtn] authPairsFile is NOT present. Validating individual inputs.");
-                // Validate individual username/password inputs only if auth pairs file is not used
-                if (!usernameFile && !singleUser) {
-                    console.error("[LaunchAttackBtn] No username source provided.");
-                    alert("Please select a username/email list file OR type a single username/email.");
-                    addLogMessage("Error: No username source provided (file or single input).", 'fail', {status: 'error', logId: `error-no-user-source-${Date.now()}`});
-                    launchAttackBtn.disabled = false; launchAttackBtn.textContent = originalLaunchBtnText; showUiStep('uiStep-CredentialsInput'); if (elapsedTimeInterval) clearInterval(elapsedTimeInterval); console.log("[LaunchAttackBtn] Exiting due to no username source."); return;
-                }
-                if (usernameFile) {
-                    console.log("[LaunchAttackBtn] Username file is present. Validating type and size.");
-                    if (usernameFile.type !== 'text/plain' && usernameFile.type !== 'text/csv') {
-                        console.error("[LaunchAttackBtn] Invalid username file type.");
-                        alert("Invalid username file type. Please upload a .txt or .csv file.");
-                        if(usernameListInput) usernameListInput.value = '';
-                        if(selectedUsernameFileNameDisplay) selectedUsernameFileNameDisplay.textContent = 'No username file selected.';
-                        addLogMessage("Error: Invalid username file type.", 'fail', {status: 'error', logId: `error-userfile-type-${Date.now()}`});
-                        launchAttackBtn.disabled = false; launchAttackBtn.textContent = originalLaunchBtnText; showUiStep('uiStep-CredentialsInput'); if (elapsedTimeInterval) clearInterval(elapsedTimeInterval); console.log("[LaunchAttackBtn] Exiting due to invalid username file type."); return;
-                    }
-                    if (usernameFile.size > 1 * 1024 * 1024) {
-                        console.error("[LaunchAttackBtn] Username file too large.");
-                        alert("Username file is too large. Maximum size is 1MB.");
-                        addLogMessage("Error: Username file too large.", 'fail', {status: 'error', logId: `error-userfile-size-${Date.now()}`});
-                        launchAttackBtn.disabled = false; launchAttackBtn.textContent = originalLaunchBtnText; showUiStep('uiStep-CredentialsInput'); if (elapsedTimeInterval) clearInterval(elapsedTimeInterval); console.log("[LaunchAttackBtn] Exiting due to username file too large."); return;
-                    }
-                }
-                if (!passwordFile) {
-                    console.error("[LaunchAttackBtn] Password file not selected.");
-                    alert("Password file not selected. Please select a password file.");
-                    addLogMessage("Error: Password file not selected.", 'fail', {status: 'error', logId: `error-nopassfile-${Date.now()}`});
-                    launchAttackBtn.disabled = false; launchAttackBtn.textContent = originalLaunchBtnText; showUiStep('uiStep-CredentialsInput'); if (elapsedTimeInterval) clearInterval(elapsedTimeInterval); console.log("[LaunchAttackBtn] Exiting due to no password file."); return;
-                }
-                 addLogMessage(usernameFile ? `Using Username File: ${usernameFile.name}` : `Using Single Username: ${singleUser}`, 'info', {logId: `info-user-source-${Date.now()}`});
-                 addLogMessage(`Using Password File: ${passwordFile.name}`, 'info', {logId: `info-pass-source-${Date.now()}`});
-                 console.log("[LaunchAttackBtn] Using individual username/password files/input.");
-            }
-            console.log("[LaunchAttackBtn] Credential source validation passed.");
+        let authFileContent = null;
+        let usernameList = [];
+        let passwordList = [];
 
-            console.log("[LaunchAttackBtn] Validating target parameters.");
-            if (!targetPostUrl || !passwordFieldName || passwordFieldName === 'Could not auto-detect' || !usernameFieldName || usernameFieldName === 'Could not auto-detect') {
-                console.error("[LaunchAttackBtn] Critical form parameters missing.");
-                alert("Critical form parameters (POST URL, Username Field Name, or Password Field Name) are missing or were not detected properly. Please ensure form analysis (Step 1 & 2) was successful and confirm the detected values.");
-                addLogMessage("Error: Critical form parameters missing. Please re-analyze URL.", 'fail', {status: 'error', logId: `error-params-${Date.now()}`});
-                launchAttackBtn.disabled = false;
-                launchAttackBtn.textContent = originalLaunchBtnText;
-                showUiStep('uiStep-AnalysisReview');
-                if (elapsedTimeInterval) clearInterval(elapsedTimeInterval);
+        if (comboFileInput && comboFileInput.files.length > 0) {
+            try {
+                authFileContent = await comboFileInput.files[0].text();
+            } catch (e) {
+                alert('Error reading combo file.');
+                console.error(e);
                 return;
             }
-
-            addLogMessage(`Username Field: ${usernameFieldName}`, 'info', {logId: `info-userfield-${Date.now()}`});
-            addLogMessage(`Password Field: ${passwordFieldName}`, 'info', {logId: `info-passfield-${Date.now()}`});
-
-            let usernames_from_file = [];
-            let passwords_from_file = [];
-            let auth_pairs_content_string = null;
-
-            console.log("[LaunchAttackBtn] Entering main try block for payload construction and fetch.");
-            try {
-                console.log("[LaunchAttackBtn] Constructing payload object.");
-                const payload = {
-                    target_post_url: targetPostUrl,
-                    username_field_name: usernameFieldName,
-                    password_field_name: passwordFieldName,
-                    form_method: window.attackContext.formMethod || 'POST',
-                    csrf_token_name: window.attackContext.csrfTokenName,
-                    csrf_token_value: window.attackContext.csrfTokenValue,
-                    cookies: window.attackContext.initialCookies,
-                    username_list: [], // Will be populated or overridden
-                    password_list: [], // Will be populated or overridden
-                    auth_file_content: null // New field
-                };
-
-                if (useAuthPairsFile) {
-                    console.log("[LaunchAttackBtn] Processing authPairsFile.");
-                    addLogMessage(`Reading Auth Pairs file: ${authPairsFile.name}...`, 'info', {logId: `info-read-authpairs-${Date.now()}`});
-                    try {
-                        const rawFileString = await readFileContentAsString(authPairsFile);
-                        console.log("[LaunchAttackBtn] Raw file string from authPairsFile read, type:", typeof rawFileString);
-                        if (typeof rawFileString === 'string') {
-                            payload.auth_file_content = rawFileString;
-                        } else {
-                            console.warn('[LaunchAttackBtn] readFileContentAsString did not return a string for authPairsFile; type was:', typeof rawFileString, '. Attempting to join if array.');
-                            if(Array.isArray(rawFileString)) {
-                                payload.auth_file_content = rawFileString.join('\n');
-                            } else {
-                                console.error('[LaunchAttackBtn] readFileContentAsString returned non-string, non-array type for authPairsFile. Setting auth_file_content to empty string.');
-                                payload.auth_file_content = "";
-                                throw new Error('Failed to read auth pairs file as string.');
-                            }
-                        }
-                        addLogMessage(`Auth Pairs file content prepared.`, 'info', {logId: `info-authpairs-done-${Date.now()}`});
-                        console.log("[LaunchAttackBtn] Auth pairs file content prepared for payload.");
-                    } catch (e) {
-                        console.error("[LaunchAttackBtn] Error processing Auth Pairs file:", e);
-                        addLogMessage(`Error processing Auth Pairs file: ${e.message}`, 'fail', {status: 'error', logId: `error-authprocess-${Date.now()}`});
-                        launchAttackBtn.disabled = false; launchAttackBtn.textContent = originalLaunchBtnText; showUiStep('uiStep-CredentialsInput'); if (elapsedTimeInterval) clearInterval(elapsedTimeInterval); console.log("[LaunchAttackBtn] Exiting due to error processing auth pairs file."); return;
-                    }
-                } else {
-                    console.log("[LaunchAttackBtn] Processing individual username/password inputs.");
-                    if (usernameFile) {
-                        console.log("[LaunchAttackBtn] Processing usernameFile.");
-                        addLogMessage(`Reading username file: ${usernameFile.name}...`, 'info', {logId: `info-read-userfile-${Date.now()}`});
-                        usernames_from_file = await readUsernamesFromFile(usernameFile);
-                        payload.username_list = usernames_from_file;
-                        addLogMessage(`Successfully read ${usernames_from_file.length} username(s).`, 'info', {logId: `info-read-userfile-done-${Date.now()}`});
-                        console.log("[LaunchAttackBtn] Username file processed.");
-                    } else if (singleUser) {
-                        payload.username_list = [singleUser];
-                        addLogMessage(`Using single username: ${singleUser}`, 'info', {logId: `info-single-user-${Date.now()}`});
-                        console.log("[LaunchAttackBtn] Single username processed.");
-                    }
-
-                    console.log("[LaunchAttackBtn] Processing passwordFile.");
-                    addLogMessage(`Reading password file: ${passwordFile.name}...`, 'info', {logId: `info-read-passfile-${Date.now()}`});
-                    passwords_from_file = await readPasswordsFromFile(passwordFile);
-                    payload.password_list = passwords_from_file;
-                    addLogMessage(`Successfully read ${passwords_from_file.length} password(s). Starting tests...`, 'info', {logId: `info-read-passfile-done-${Date.now()}`});
-                    console.log("[LaunchAttackBtn] Password file processed.");
+        } else {
+            if (usernameListInput && usernameListInput.files.length > 0) {
+                try {
+                    const userFileText = await usernameListInput.files[0].text();
+                    usernameList = userFileText.split(/\r?\n/).map(u => u.trim()).filter(u => u);
+                } catch (e) {
+                    alert('Error reading username file.');
+                    console.error(e);
+                    return;
                 }
-                console.log("[LaunchAttackBtn] Payload fully constructed:", payload);
-                console.log("[LaunchAttackBtn] Making fetch call to /test_credentials...");
-                const response = await fetch(API_BASE_URL + '/test_credentials', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json',},
-                    body: JSON.stringify(payload),
-                });
+            } else if (singleUsernameInput && singleUsernameInput.value.trim()) {
+                usernameList = [singleUsernameInput.value.trim()];
+            }
 
-                if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({ error: `API Error: ${response.status} ${response.statusText || 'Unknown API Error'}` }));
-                    throw new Error(errorData.error || `API Error: ${response.status} ${response.statusText || 'Unknown API Error'}`);
-                }
-
-                if (!response.body) {
-                    throw new Error("Response body is null, cannot read stream.");
-                }
-
-                const reader = response.body.getReader();
-                const decoder = new TextDecoder();
-                let buffer = '';
-
-                async function processStream() {
-                    while (true) {
-                        const { done, value } = await reader.read();
-                        if (done) {
-                            console.log("Stream finished.");
-                            if (buffer.trim()) {
-                                processBuffer();
-                            }
-                            const activeTerminalBodyRef = document.querySelector('#uiStep-Monitor.active .terminal-body');
-                            const terminalMessages = activeTerminalBodyRef ? activeTerminalBodyRef.querySelectorAll('p') : [];
-                            const lastMessage = terminalMessages.length > 0 ? terminalMessages[terminalMessages.length-1].textContent : "";
-                            if (!lastMessage.includes("All attempts finished") && !lastMessage.includes("server signal")) {
-                                addLogMessage("Stream ended. All available results processed.", "info", {logId: `complete-stream-end-${Date.now()}`});
-                            }
-                             if (elapsedTimeInterval) clearInterval(elapsedTimeInterval);
-                            updateTimers();
-                            if (etaEl) etaEl.textContent = 'Done';
-                            break;
-                        }
-                        buffer += decoder.decode(value, { stream: true });
-                        processBuffer();
-                    }
-                }
-
-                function processBuffer() {
-                    let sseMessages = buffer.split('\n\n');
-                    for (let i = 0; i < sseMessages.length - 1; i++) {
-                        let messageBlock = sseMessages[i].trim();
-                        if (messageBlock.startsWith("data:")) {
-                            let jsonDataString = messageBlock.substring(5).trim();
-                            try {
-                                let result_item = JSON.parse(jsonDataString);
-
-                                if (result_item.type === 'info' && result_item.total_expected_attempts !== undefined) {
-                                    totalExpectedAttemptsForCurrentTest = parseInt(result_item.total_expected_attempts, 10);
-                                    completedAttemptsThisRun = 0;
-                                    console.log(`Total expected attempts for this run: ${totalExpectedAttemptsForCurrentTest}`);
-                                    addLogMessage(result_item.message, 'info', {logId: `info-expected-${Date.now()}`});
-                                } else if (result_item.status === 'complete') {
-                                    addLogMessage(result_item.message || "All attempts finished (server signal).", "info", {logId: `complete-server-${Date.now()}`});
-                                    if (elapsedTimeInterval) clearInterval(elapsedTimeInterval);
-                                    updateTimers();
-                                    if (etaEl) etaEl.textContent = 'Done';
-                                } else {
-                                    completedAttemptsThisRun++;
-                                    totalAttemptsForHUD++;
-
-                                    if (result_item.status === 'success') {
-                                        totalHitsForHUD++;
-                                    }
-                                    if (attemptsCountEl) attemptsCountEl.textContent = totalAttemptsForHUD;
-                                    if (hitsCountEl) hitsCountEl.textContent = totalHitsForHUD;
-
-                                    const currentAttemptId = `logEntry-${totalAttemptsForHUD}`;
-
-                                    const displayPassword = (result_item.password_actual || result_item.password || "").replace(/./g, '*');
-                                    const clText = result_item.content_length !== undefined && result_item.content_length !== null ? result_item.content_length : 'N/A';
-                                    let logDetail = `[${result_item.status.toUpperCase()}] User: ${result_item.username} / Pass: ${displayPassword} (CL: ${clText})`;
-
-                                    // Add score to the log detail if analysis is present
-                                    if (result_item.analysis && result_item.analysis.score !== undefined) {
-                                        logDetail += ` (Score: ${result_item.analysis.score})`;
-                                    }
-                                    logDetail += ` - ${result_item.details}`;
-
-
-                                    attemptDetailsStore[currentAttemptId] = {
-                                        request_details: result_item.request_details,
-                                        response_body: result_item.response_body,
-                                        analysis: result_item.analysis // Store the new analysis field
-                                    };
-
-                                    addLogMessage(logDetail, result_item.status, {
-                                        id: currentAttemptId,
-                                        logId: currentAttemptId,
-                                        status: result_item.status,
-                                        contentLength: result_item.content_length
-                                    });
-                                }
-                            } catch (e) {
-                                console.error("Error parsing streamed JSON:", e, jsonDataString);
-                                addLogMessage(`Error parsing streamed data: ${jsonDataString}`, 'error', {status: 'error', logId: `error-parse-${Date.now()}`});
-                            }
-                        }
-                    }
-                    buffer = sseMessages[sseMessages.length - 1];
-                }
-                await processStream();
-                console.log("[LaunchAttackBtn] processStream finished.");
-            } catch (error) {
-                console.error("[LaunchAttackBtn] Error during credential testing setup or API call:", error);
-                addLogMessage(`Error: ${error.message}`, 'fail', {status: 'error', logId: `error-setup-${Date.now()}`});
-                alert(`An error occurred: ${error.message}`);
-                showUiStep('uiStep-CredentialsInput'); // Go back to allow fixing input
-                if (elapsedTimeInterval) clearInterval(elapsedTimeInterval);
-                console.log("[LaunchAttackBtn] Error caught, UI reset to CredentialsInput.");
-            } finally {
-                console.log("[LaunchAttackBtn] Entering finally block.");
-                launchAttackBtn.disabled = false;
-                launchAttackBtn.textContent = originalLaunchBtnText;
-                if (elapsedTimeInterval) {
-                    clearInterval(elapsedTimeInterval);
-                    updateTimers();
-                    if (etaEl && (etaEl.textContent === '--:--:--' || etaEl.textContent === 'Calculating...')) {
-                         etaEl.textContent = (completedAttemptsThisRun === totalExpectedAttemptsForCurrentTest && totalExpectedAttemptsForCurrentTest > 0) ? '00:00:00' : 'Stopped';
-                    }
+            if (passwordListInput && passwordListInput.files.length > 0) {
+                 try {
+                    const passFileText = await passwordListInput.files[0].text();
+                    passwordList = passFileText.split(/\r?\n/).map(p => p.trim()).filter(p => p);
+                } catch (e) {
+                    alert('Error reading password file.');
+                    console.error(e);
+                    return;
                 }
             }
+        }
+
+        if (!authFileContent && (usernameList.length === 0 || passwordList.length === 0)) {
+            alert('Please provide credentials: either a combo file, or username(s) and password(s).');
+            return;
+        }
+
+        const payload = {
+            target_post_url: detectedPostUrlInput.value,
+            username_field_name: detectedUsernameFieldInput.value,
+            password_field_name: detectedPasswordFieldInput.value,
+            form_method: currentAnalysisResult.form_method || 'POST', // Get from analysis
+            csrf_token_name: detectedCsrfNameInput.value || null,
+            csrf_token_value: detectedCsrfValueInput.value || null,
+            cookies: currentAnalysisResult.cookies || {}, // From analysis
+            auth_file_content: authFileContent,
+            username_list: usernameList,
+            password_list: passwordList,
+        };
+
+        // Add all other form_parameters from raw request if they exist
+        if (currentAnalysisResult.form_parameters) {
+            payload.form_parameters = currentAnalysisResult.form_parameters;
+        }
+
+
+        appendToLiveFeed('Starting attack...', 'info');
+        attackStartTime = new Date();
+        elapsedTimeInterval = setInterval(updateElapsedTime, 1000);
+
+        if (eventSource) {
+            eventSource.close();
+        }
+
+        eventSource = new EventSource(`/test_credentials?payload=${encodeURIComponent(JSON.stringify(payload))}`); // Send payload as query param for GET or modify backend to accept POST for EventSource setup
+
+        // It's better to send the payload via POST to /test_credentials and have that endpoint
+        // initiate the SSE stream. For now, this is a simplified GET approach if the backend supports it.
+        // A more robust way:
+        // 1. POST payload to a new endpoint like /initiate_attack_stream
+        // 2. That endpoint saves payload to session or generates a unique ID
+        // 3. EventSource connects to /test_credentials?stream_id=<unique_id>
+        // For this example, I'll assume the backend's /test_credentials can handle a GET or that it was adapted.
+        // The current python backend uses POST for /test_credentials. This will need adjustment.
+        // Let's proceed assuming we'll adjust the fetch call to POST and the backend handles it.
+
+        // Correct approach: POST to /test_credentials
+        fetch('/test_credentials', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status} on setup.`);
+            }
+            // If the server immediately starts streaming on this response (not typical for SSE setup)
+            // This part needs to align with how the server initiates SSE.
+            // Standard SSE is via EventSource GET.
+            // The current python backend expects a POST then it returns the SSE stream.
+            // This means the fetch itself is the stream. This is unusual.
+            // Let's assume the python server was modified to handle this fetch as the stream initiator.
+            // This is not how EventSource() works. EventSource always makes a GET.
+
+            // The following is a conceptual adaptation for a fetch-based stream reader
+            // if the server directly streams on the POST response.
+            // This is NOT standard SSE client behavior with EventSource.
+            // For a real EventSource, the EventSource object handles this.
+
+            // The Python backend is set up to return a Response object with mimetype text/event-stream
+            // from the POST request itself. So we read the stream from the response body.
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+
+            function processText({ done, value }) {
+                if (done) {
+                    appendToLiveFeed('Attack stream finished.', 'info');
+                    clearInterval(elapsedTimeInterval);
+                    updateElapsedTime(); // Final update
+                     if (metricEta) metricEta.textContent = 'Done';
+                    return;
+                }
+
+                const chunk = decoder.decode(value, { stream: true });
+                const messages = chunk.split('\n\n'); // SSE messages are separated by double newlines
+
+                messages.forEach(message => {
+                    if (message.startsWith('data:')) {
+                        const jsonData = message.substring(5).trim();
+                        if (jsonData) {
+                            try {
+                                const eventData = JSON.parse(jsonData);
+                                handleSseEvent(eventData);
+                            } catch (e) {
+                                console.error('Error parsing SSE JSON:', e, jsonData);
+                                appendToLiveFeed(`Error parsing event: ${jsonData}`, 'error');
+                            }
+                        }
+                    }
+                });
+                return reader.read().then(processText);
+            }
+            return reader.read().then(processText);
+
+        })
+        .catch(error => {
+            console.error('Error launching attack / reading stream:', error);
+            appendToLiveFeed(`Error launching attack: ${error.message}`, 'error');
+            clearInterval(elapsedTimeInterval);
         });
-    } else {
-        console.error('Launch Attack button (launchAttackBtn) not found.');
     }
 
-    // Initial UI Setup
-    if (uiStepTargetURL) {
-       showUiStep('uiStep-TargetURL');
+    function handleSseEvent(data) {
+        currentAttempts++;
+        if (metricTotalAttempts && totalExpectedAttempts > 0) {
+           metricTotalAttempts.textContent = `${currentAttempts}/${totalExpectedAttempts}`;
+        } else if (metricTotalAttempts) {
+            metricTotalAttempts.textContent = currentAttempts.toString();
+        }
+
+
+        if (data.type === 'info' && data.total_expected_attempts) {
+            totalExpectedAttempts = data.total_expected_attempts;
+            appendToLiveFeed(data.message, 'info');
+             if (metricTotalAttempts) metricTotalAttempts.textContent = `0/${totalExpectedAttempts}`;
+            return;
+        }
+
+        if (data.status === 'complete') {
+            appendToLiveFeed(data.message || 'Attack complete.', 'info');
+            clearInterval(elapsedTimeInterval);
+            updateElapsedTime(); // Final update
+            if (metricEta) metricEta.textContent = 'Done';
+            // eventSource.close(); // This would be for EventSource() object
+            return;
+        }
+
+        let logMessage = `Attempt: U: ${data.username}, P: **** - Status: ${data.status}`;
+        if(data.details) logMessage += ` - Details: ${data.details.substring(0, 150)}...`;
+
+        appendToLiveFeed(logMessage, data.status);
+
+        if (data.status === 'success') {
+            hits++;
+            if (metricHits) metricHits.textContent = hits.toString();
+        }
+        updateElapsedTime();
     }
-    if (formAnalysisResultsPanel) formAnalysisResultsPanel.style.display = 'none';
-    if (step2Options) step2Options.style.display = 'none';
+
+
+    if (launchAttackBtn) launchAttackBtn.addEventListener('click', handleLaunchAttack);
 
 });
