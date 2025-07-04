@@ -1,245 +1,267 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Predator - Web Attack Panel</title>
+    <title>Stryker - Advanced Security Suite</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Lexend:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
-    <div id="particle-background"></div>
-
-    <div class="main-container">
-        <header class="global-header">
-            <div class="logo-container">
-                <i class="fa-solid fa-shield-halved logo-icon"></i>
+    <div class="page-container">
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <a href="#" class="logo">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 2L2 7V17L12 22L22 17V7L12 2Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M2 7L12 12M22 7L12 12M12 22V12M17 4.5L7 9.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    <span>Stryker</span>
+                </a>
             </div>
-            <nav class="global-nav">
-                <a href="#" class="nav-item" data-tooltip="Dashboard"><i class="fa-solid fa-table-columns"></i></a>
-                <a href="#" class="nav-item active" data-tooltip="New Attack"><i class="fa-solid fa-crosshairs"></i></a>
-                <a href="#" class="nav-item" data-tooltip="History"><i class="fa-solid fa-clock-rotate-left"></i></a>
-                <a href="#" class="nav-item" data-tooltip="Settings"><i class="fa-solid fa-gear"></i></a>
+            <nav class="sidebar-nav">
+                <a href="#dashboard-section" class="nav-link active" data-section="dashboard-section">
+                    <svg class="icon"><use href="#icon-dashboard"/></svg>
+                    <span>Dashboard</span>
+                </a>
+                <a href="#new-scan-section" class="nav-link" data-section="new-scan-section">
+                    <svg class="icon"><use href="#icon-target"/></svg>
+                    <span>New Scan</span>
+                </a>
+                <a href="#history-section" class="nav-link" data-section="history-section">
+                    <svg class="icon"><use href="#icon-history"/></svg>
+                    <span>History</span>
+                </a>
+                <a href="#settings-section" class="nav-link" data-section="settings-section">
+                    <svg class="icon"><use href="#icon-settings"/></svg>
+                    <span>Settings</span>
+                </a>
             </nav>
-        </header>
+            <div class="sidebar-footer">
+                <a href="#" class="nav-link">
+                    <svg class="icon"><use href="#icon-help"/></svg>
+                    <span>Help</span>
+                </a>
+                <div class="theme-switcher">
+                    <input type="checkbox" id="theme-toggle" class="theme-toggle-checkbox">
+                    <label for="theme-toggle" class="theme-toggle-label">
+                        <svg class="icon icon-sun"><use href="#icon-sun"/></svg>
+                        <svg class="icon icon-moon"><use href="#icon-moon"/></svg>
+                    </label>
+                </div>
+            </div>
+        </aside>
 
-        <main class="content-area">
-
-            <!-- Step 1: Target URL Input -->
-            <div id="uiStep-TargetURL" class="wizard-step active">
-                <div class="panel-container">
-                    <div class="glass-panel form-panel">
-                        <h1 class="panel-title">Step 1: Target URL</h1>
-                        <p class="panel-subtitle">Enter the login page URL to analyze.</p>
-
-                        <div class="form-group">
-                             <input type="url" id="login-url" class="form-input" placeholder=" " required>
-                             <label for="login-url" class="form-label">Login URL</label>
-                        </div>
-
-                        <button id="analyzeFormButton" class="btn btn-primary btn-analyze"> <!-- Used class_alias in prompt, but id is better for JS and class for styling -->
-                            <span class="btn-text">Analyze Form</span>
-                            <span class="spinner" style="display: none;"></span>
-                        </button>
-
-                        <p class="panel-subtitle" style="margin-top: 1.5rem; margin-bottom: 1.5rem; text-align: center; font-weight: bold;">&mdash; OR &mdash;</p>
-
-                        <div class="form-group">
-                            <label for="raw-request-input" class="form-label" style="position: static; transform: none; color: var(--text-color); font-size: 16px; margin-bottom: 8px; display:block;">
-                                Paste Full HTTP Request:
-                            </label>
-                            <span class="micro-label" style="font-size: 11px; color: var(--text-color); opacity: 0.7; margin-bottom: 8px; display: block;">(e.g., from browser DevTools 'Copy as cURL (bash)' or 'Copy as fetch (PowerShell)', then simplify to basic request)</span>
-                            <textarea id="raw-request-input" class="form-input" style="height: 150px; border: 1px solid var(--border-color); padding: 10px; line-height: 1.4; resize: vertical;" placeholder="Example:
-POST /login HTTP/1.1
-Host: example.com
-Content-Type: application/x-www-form-urlencoded
-
-username=test&password=123"></textarea>
-                        </div>
-                        <button id="parseRawRequestBtn" class="btn btn-secondary" style="width: 100%; margin-top: 0.5rem;">Parse Captured Request</button>
+        <main class="main-content">
+            <header class="main-header">
+                <button class="sidebar-toggle" id="sidebar-toggle">
+                    <svg class="icon"><use href="#icon-menu"/></svg>
+                </button>
+                <div class="header-actions">
+                    <div class="search-bar">
+                        <svg class="icon"><use href="#icon-search"/></svg>
+                        <input type="text" placeholder="Search reports...">
                     </div>
-                    <div class="visualizer-panel">
-                        <div class="screenshot-thumbnail">
-                            <i class="fa-solid fa-camera"></i>
-                            <p>Enter a URL to preview the target page</p>
+                    <button class="icon-button tooltip" data-tooltip="Notifications">
+                        <svg class="icon"><use href="#icon-bell"/></svg>
+                        <span class="notification-dot"></span>
+                    </button>
+                    <div class="profile-dropdown">
+                        <img src="https://i.pravatar.cc/40" alt="User Avatar">
+                        <div class="profile-info">
+                            <span class="profile-name">Alex Drake</span>
+                            <span class="profile-role">Admin</span>
+                        </div>
+                        <svg class="icon icon-chevron"><use href="#icon-chevron-down"/></svg>
+                    </div>
+                </div>
+            </header>
+
+            <section id="dashboard-section" class="content-section active-section">
+                <div class="section-header">
+                    <h1>Dashboard</h1>
+                    <div class="header-buttons">
+                        <button class="button button-secondary">Export Report</button>
+                        <button class="button button-primary" id="startNewScanFromDashboard">Start New Scan</button>
+                    </div>
+                </div>
+                <div class="card-grid">
+                    <!-- Placeholder dashboard cards from Stryker -->
+                    <div class="card stat-card">
+                        <div class="card-icon" style="--icon-bg: var(--color-primary-light); --icon-color: var(--color-primary);">
+                            <svg class="icon"><use href="#icon-target"/></svg>
+                        </div>
+                        <div class="card-content">
+                            <p class="stat-value">1,428</p>
+                            <p class="stat-label">Total Scans</p>
+                        </div>
+                    </div>
+                    <div class="card stat-card">
+                        <div class="card-icon" style="--icon-bg: var(--color-success-light); --icon-color: var(--color-success);">
+                            <svg class="icon"><use href="#icon-shield-check"/></svg>
+                        </div>
+                        <div class="card-content">
+                            <p class="stat-value">98.2%</p>
+                            <p class="stat-label">Success Rate</p>
                         </div>
                     </div>
                 </div>
-            </div>
+            </section>
 
-            <!-- Step 2: Analysis Review & Confirmation -->
-            <div id="uiStep-AnalysisReview" class="wizard-step" style="display:none;">
-                <div class="panel-container">
-                    <div class="glass-panel form-panel">
-                        <h1 class="panel-title">Step 2: Review Parameters</h1>
-                        <p class="panel-subtitle">Confirm or edit the detected form parameters.</p>
+            <section id="new-scan-section" class="content-section" style="display: none;">
+                <!-- This is where Predator's multi-step UI will go -->
+                <div class="wizard-step-container">
 
-                        <div id="form-analysis-results" class="form-analysis-results-panel" style="/* display: block; ensure it's visible when parent is */ padding-top: 0; border-top: none; margin-top:0;">
-                            <!-- Display for parameters from captured request -->
-                            <div id="capturedParamsDisplay" style="margin-top: 1.5rem; display:none;">
-                                <h4 class="modal-subtitle" style="font-size: 16px; color: var(--primary-cyan); margin-bottom: 8px;">
-                                    Parameters from Captured Request:
-                                </h4>
-                                <pre id="capturedParamsText" class="modal-code-block" style="max-height: 200px; margin-bottom: 10px;"></pre>
-                                <p class="panel-subtitle" style="font-size: 12px; margin-top: 0px; opacity: 0.8;">
-                                    Review the full list of parameters above. The tool has attempted to pre-fill the fields below based on common names. Please verify and correct if necessary.
+                    <!-- Step 1: Target URL Input / Raw Request -->
+                    <div id="uiStep-TargetURL" class="wizard-step card">
+                        <div class="card-header"><h2>Step 1: Target Configuration</h2></div>
+                        <div class="form-group">
+                            <input type="url" id="login-url" class="form-input" placeholder=" " required>
+                            <label for="login-url">Login Page URL</label>
+                        </div>
+                        <button id="analyzeFormButton" class="button button-primary">
+                            <span class="btn-text">Analyze Form</span>
+                            <span class="spinner"></span>
+                        </button>
+
+                        <p style="text-align: center; margin: var(--spacing-4) 0; font-weight: 600;">&mdash; OR &mdash;</p>
+
+                        <div class="form-group">
+                            <label for="raw-request-input" class="static-label">Paste Full HTTP Request:</label>
+                            <span class="micro-label" style="font-size: 0.75rem; color: var(--color-text-secondary); opacity: 0.7; margin-bottom: var(--spacing-2); display: block;">(e.g., from browser DevTools 'Copy as cURL (bash)' or 'Copy as fetch (PowerShell)', then simplify to basic request)</span>
+                            <textarea id="raw-request-input" class="form-textarea" style="min-height: 150px;" placeholder="Example: POST /login HTTP/1.1\nHost: example.com\nContent-Type: application/x-www-form-urlencoded\n\nusername=test&password=123"></textarea>
+                        </div>
+                        <button id="parseRawRequestBtn" class="button button-secondary full-width">
+                            <span class="btn-text">Parse Captured Request</span>
+                            <span class="spinner"></span>
+                        </button>
+                    </div>
+
+                    <!-- Step 2: Analysis Review & Confirmation -->
+                    <div id="uiStep-AnalysisReview" class="wizard-step card" style="display:none;">
+                        <div class="card-header"><h2>Step 2: Review Parameters</h2></div>
+                        <p>Confirm or edit the detected form parameters.</p>
+
+                        <div id="form-analysis-results" style="margin-top: var(--spacing-4);">
+                            <div id="capturedParamsDisplay" style="margin-bottom: var(--spacing-4); display:none;">
+                                <h3 style="font-size: 1.1rem; color: var(--color-primary); margin-bottom: var(--spacing-2);">Parameters from Captured Request:</h3>
+                                <pre id="capturedParamsText" class="modal-code-block" style="max-height: 150px;"></pre>
+                                <p style="font-size: 0.8rem; margin-top: var(--spacing-2); opacity: 0.8;">
+                                    Review the full list. The tool has attempted to pre-fill fields below. Verify and correct.
                                 </p>
                             </div>
 
-                            <h3 class="panel-subtitle" style="margin-bottom: 1.5rem; font-size: 18px; color: var(--primary-magenta);">Detected Form Parameters</h3>
+                            <h3 style="font-size: 1.1rem; margin-bottom: var(--spacing-3); color: var(--color-text-primary);">Detected Form Parameters</h3>
                             <div class="form-group">
                                 <input type="text" id="detected-username-field" class="form-input" placeholder=" ">
-                                <label for="detected-username-field" class="form-label">Username Field Name</label>
+                                <label for="detected-username-field">Username Field Name</label>
                             </div>
                             <div class="form-group">
                                 <input type="text" id="detected-password-field" class="form-input" placeholder=" ">
-                                <label for="detected-password-field" class="form-label">Password Field Name</label>
+                                <label for="detected-password-field">Password Field Name</label>
                             </div>
                             <div class="form-group">
                                 <input type="text" id="detected-post-url" class="form-input" placeholder=" ">
-                                <label for="detected-post-url" class="form-label">Form POST URL</label>
+                                <label for="detected-post-url">Form POST URL</label>
                             </div>
-                            <!-- CSRF fields could be added here if manual input is desired -->
                         </div>
-
-                        <button id="proceedToCredentialsBtn" class="btn btn-primary" style="margin-top: 1rem; width: 100%;">Proceed to Credentials</button>
+                        <button id="proceedToCredentialsBtn" class="button button-primary full-width" style="margin-top: var(--spacing-4);">Proceed to Credentials</button>
                     </div>
-                     <div class="visualizer-panel">
-                        <div class="screenshot-thumbnail">
-                            <i class="fa-solid fa-camera"></i>
-                            <p>URL Analyzed. Review parameters.</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
 
-            <!-- Step 3: Credentials Input & Launch -->
-            <div id="uiStep-CredentialsInput" class="wizard-step" style="display:none;">
-                <div class="panel-container">
-                    <div class="glass-panel form-panel">
-                        <h1 class="panel-title">Step 3: Provide Credentials</h1>
-                        <p class="panel-subtitle">Upload username and password lists.</p>
+                    <!-- Step 3: Credentials Input & Launch -->
+                    <div id="uiStep-CredentialsInput" class="wizard-step card" style="display:none;">
+                        <div class="card-header"><h2>Step 3: Provide Credentials</h2></div>
+                        <p>Upload username and password lists.</p>
 
                         <div class="form-group">
-                            <label class="micro-label">Username/Email List File</label>
+                            <label class="micro-label">Username/Email List File (.txt, .csv)</label>
                             <div class="drop-zone">
-                                <i class="fa-solid fa-users"></i>
-                                <p>Drag & Drop .txt or .csv username/email list</p>
+                                <svg class="icon" style="width:32px; height:32px; margin-bottom: var(--spacing-2);"><use href="#icon-history"/></svg> <!-- Placeholder icon -->
+                                <p>Drag & Drop username/email list</p>
                                 <input type="file" id="username-list-upload" accept=".txt,.csv" style="display: none;">
-                                <button type="button" id="browse-username-files-btn" class="btn btn-secondary">Browse Username Files</button>
+                                <button type="button" id="browse-username-files-btn" class="button button-secondary">Browse Usernames</button>
                                 <p id="selected-username-file-name" class="selected-file-display">No file selected.</p>
                             </div>
                         </div>
 
                         <div class="form-group">
-                             <label class="micro-label">Password List</label>
+                             <label class="micro-label">Password List File (.txt, .csv)</label>
                              <div class="drop-zone">
-                                 <i class="fa-solid fa-microchip"></i>
-                                 <p>Drag & Drop .txt or .csv file</p>
+                                 <svg class="icon" style="width:32px; height:32px; margin-bottom: var(--spacing-2);"><use href="#icon-settings"/></svg> <!-- Placeholder icon -->
+                                 <p>Drag & Drop password list</p>
                                  <input type="file" id="password-list-upload" accept=".txt,.csv" style="display: none;">
-                                 <button type="button" id="browse-files-btn" class="btn btn-secondary">Browse Password Files</button>
+                                 <button type="button" id="browse-password-files-btn" class="button button-secondary">Browse Passwords</button>
                                  <p id="selected-password-file-name" class="selected-file-display">No password file selected.</p>
                              </div>
                         </div>
-
-                        <button id="launchAttackBtn" class="btn btn-primary" style="width: 100%; margin-top: 1rem; background: linear-gradient(45deg, var(--primary-magenta), var(--success-lime));">
-                            Launch Attack
+                        <button id="launchAttackBtn" class="button button-primary full-width" style="margin-top: var(--spacing-4); background-color: var(--color-success);">
+                            <span class="btn-text">Launch Attack</span>
+                            <span class="spinner"></span>
                         </button>
                     </div>
-                    <div class="visualizer-panel">
-                        <div class="screenshot-thumbnail">
-                            <i class="fa-solid fa-file-upload"></i>
-                            <p>Ready for credential files.</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
 
-            <!-- Step 2 from original design - Options & Payload (Currently Hidden / Bypassed) -->
-            <div class="wizard-step" id="step2-options" style="display:none;"> <!-- Renamed id to avoid conflict if old step2 JS exists -->
-                 <h1 class="panel-title">Options & Payload (Advanced)</h1>
-                 <div class="options-grid">
-                     <div class="glass-panel">
-                         <label class="micro-label">Concurrency</label>
-                         <div class="knob-ui">
-                             <div class="knob-value">50</div>
+                    <!-- Step 4: Monitor Attack -->
+                    <div id="uiStep-Monitor" class="wizard-step card" style="display:none;">
+                         <div class="card-header">
+                             <h2>Step 4: Monitor Attack</h2>
                          </div>
-                         <p class="panel-subtitle">Threads: 1 - 100</p>
-                     </div>
-                     <div class="glass-panel">
-                         <label class="micro-label">Rate Limiter</label>
-                         <img src="https://i.imgur.com/gD3I4sJ.png" alt="Waveform graph" style="width: 100%; opacity: 0.6; margin-top: 10px;">
-                     </div>
-                     <div class="glass-panel large-panel">
-                         <label class="micro-label">Headers & Proxies (JSON)</label>
-                         <div class="code-editor">
-                            <pre><code>{
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-    "Accept-Language": "en-US,en;q=0.9",
-    "proxies": [
-        "http://user:pass@127.0.0.1:8080"
-    ]
-}</code></pre>
-                         </div>
-                     </div>
-                 </div>
-            </div>
-
-            <!-- Step 4: Monitor Attack (was #step3) -->
-            <div class="wizard-step" id="uiStep-Monitor">
-                 <div class="monitor-header">
-                     <h1 class="panel-title">Step 4: Monitor Attack</h1>
-                     <div class="launch-controls">
-                        <!-- Original LAUNCH button, functionality might be reassigned or removed if not used -->
-                        <button class="btn-launch-cube">▶ LAUNCH</button>
-                     </div>
-                 </div>
-                 <div class="monitor-grid">
-                     <div class="glass-panel terminal-feed">
-                         <div class="terminal-header">
-                             <span>LIVE FEED</span>
-                             <div class="terminal-filters">
-                                 <span id="filter-all" class="active">ALL</span>
-                                 <span id="filter-hits">HITS</span>
-                                 <span id="filter-fails">FAILS</span>
-                                 <span id="filter-content-length">CONTENT LENGTH</span>
-                                 <span id="sort-cl-asc" class="sort-control" title="Sort by Content Length Ascending">▲</span>
-                                 <span id="sort-cl-desc" class="sort-control" title="Sort by Content Length Descending">▼</span>
-                                 <span id="filter-response">RESPONSE</span>
+                         <div class="monitor-grid" style="grid-template-columns: 1fr; gap: var(--spacing-4);">
+                             <div class="metrics-hud">
+                                 <div class="hud-pod">
+                                     <label class="micro-label">TOTAL ATTEMPTS</label>
+                                     <span id="hud-total-attempts" class="hud-value">0</span>
+                                 </div>
+                                 <div class="hud-pod">
+                                    <label class="micro-label">HITS</label>
+                                    <span id="hud-hits" class="hud-value success-text">0</span>
+                                 </div>
+                                 <div class="hud-pod">
+                                    <label class="micro-label">ELAPSED TIME</label>
+                                    <span id="hud-elapsed-time" class="hud-value">00:00:00</span>
+                                 </div>
+                                 <div class="hud-pod">
+                                    <label class="micro-label">ETA</label>
+                                    <span id="hud-eta" class="hud-value">--:--:--</span>
+                                 </div>
+                             </div>
+                             <div class="terminal-feed">
+                                 <div class="terminal-header">
+                                     <span>LIVE FEED</span>
+                                     <div class="terminal-filters">
+                                         <span id="filter-all" class="active">ALL</span>
+                                         <span id="filter-hits">HITS</span>
+                                         <span id="filter-fails">FAILS</span>
+                                         <span id="filter-content-length">CONTENT LENGTH</span>
+                                         <span id="sort-cl-asc" class="sort-control" title="Sort by Content Length Ascending">▲</span>
+                                         <span id="sort-cl-desc" class="sort-control" title="Sort by Content Length Descending">▼</span>
+                                         <span id="filter-response">RESPONSE</span>
+                                     </div>
+                                 </div>
+                                 <div class="terminal-body">
+                                     <p><span class="status-time">[INFO]</span><span class="status-info"> Awaiting attack initiation...</span></p>
+                                 </div>
                              </div>
                          </div>
-                         <div class="terminal-body">
-                             <!-- Log messages will be dynamically inserted here by script.js -->
-                             <p><span class="status-time">[INFO]</span><span class="status-info"> Awaiting attack initiation...</span></p>
-                         </div>
-                     </div>
-                     <div class="metrics-hud">
-                         <div class="hud-pod">
-                             <label class="micro-label">TOTAL ATTEMPTS</label>
-                             <span id="hud-total-attempts" class="hud-value">0</span>
-                         </div>
-                         <div class="hud-pod">
-                            <label class="micro-label">HITS</label>
-                            <span id="hud-hits" class="hud-value success-text">0</span>
-                         </div>
-                         <div class="hud-pod">
-                            <label class="micro-label">ELAPSED TIME</label>
-                            <span id="hud-elapsed-time" class="hud-value">00:00:00</span>
-                         </div>
-                         <div class="hud-pod">
-                            <label class="micro-label">ETA</label>
-                            <span id="hud-eta" class="hud-value">--:--:--</span>
-                         </div>
-                     </div>
-                 </div>
-            </div>
+                    </div>
+                </div> <!-- End wizard-step-container -->
+            </section>
+
+            <section id="history-section" class="content-section" style="display: none;">
+                <div class="section-header"><h1>History</h1></div>
+                <div class="card"><p>Attack history will be displayed here. (Not yet implemented)</p></div>
+            </section>
+
+            <section id="settings-section" class="content-section" style="display: none;">
+                <div class="section-header"><h1>Settings</h1></div>
+                <div class="card"><p>Application settings will be available here. (Not yet implemented)</p></div>
+            </section>
 
         </main>
     </div>
 
+    <!-- Modal for HTTP Transaction Details -->
     <div id="responseModal" class="modal" style="display:none;">
         <div class="modal-content">
-            <span id="modalCloseBtn" class="modal-close-btn">&times;</span>
+            <button id="modalCloseBtn" class="modal-close-btn">&times;</button>
             <h3 class="modal-title">HTTP Transaction Details</h3>
 
             <div class="modal-section">
@@ -251,19 +273,35 @@ username=test&password=123"></textarea>
                 <h4 class="modal-subtitle">Response Body:</h4>
                 <pre id="modalResponseBody" class="modal-code-block"></pre>
             </div>
-
             <div class="modal-section">
                 <h4 class="modal-subtitle">Login Analysis Details:</h4>
                 <p><strong>Score:</strong> <span id="modalLoginScore">N/A</span></p>
-
                 <h5 class="modal-subtitle" style="font-size: 1em; margin-top: 10px;">Positive Indicators:</h5>
                 <div id="modalPositiveIndicators" class="modal-code-block" style="max-height: 150px; overflow-y: auto;">N/A</div>
-
                 <h5 class="modal-subtitle" style="font-size: 1em; margin-top: 10px;">Negative Indicators:</h5>
                 <div id="modalNegativeIndicators" class="modal-code-block" style="max-height: 150px; overflow-y: auto;">N/A</div>
             </div>
         </div>
     </div>
-    <script src="{{ url_for('static', filename='script.js') }}" defer></script>
+
+    <svg style="display: none;">
+        <symbol id="icon-dashboard" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 13V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zm0 0l6-3l6 3m-6-8v11"/></symbol>
+        <symbol id="icon-target" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 21a9 9 0 1 0-9-9a9 9 0 0 0 9 9zm0-4a5 5 0 1 0-5-5a5 5 0 0 0 5 5zm0-2a3 3 0 1 0-3-3a3 3 0 0 0 3 3z"/></symbol>
+        <symbol id="icon-history" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m5-3a9 9 0 1 1-18 0a9 9 0 0 1 18 0z"/></symbol>
+        <symbol id="icon-settings" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.14 12a7.14 7.14 0 0 1-7.14 7.14a7.14 7.14 0 0 1-7.14-7.14a7.14 7.14 0 0 1 7.14-7.14a7.14 7.14 0 0 1 7.14 7.14zm-4.28 0a2.86 2.86 0 1 1-5.72 0a2.86 2.86 0 0 1 5.72 0z"/></symbol>
+        <symbol id="icon-help" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 21a9 9 0 1 0-9-9c0 2.12.74 4.09 2 5.59l-2 3.41l3.41-2A8.93 8.93 0 0 0 12 21z"/></symbol>
+        <symbol id="icon-sun" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m12.02-.707l-.707-.707M6.343 6.343l-.707-.707M12 17a5 5 0 1 0 0-10a5 5 0 0 0 0 10z"/></symbol>
+        <symbol id="icon-moon" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12.79A9 9 0 1 1 11.21 3A7 7 0 0 0 21 12.79z"/></symbol>
+        <symbol id="icon-menu" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></symbol>
+        <symbol id="icon-search" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M11 19a8 8 0 1 0 0-16a8 8 0 0 0 0 16z"/></symbol>
+        <symbol id="icon-bell" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9m-4.27 11a2 2 0 0 1-3.46 0"/></symbol>
+        <symbol id="icon-chevron-down" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m6 9l6 6l6-6"/></symbol>
+        <symbol id="icon-shield-check" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2l4-4m6 2a9 9 0 1 1-18 0a9 9 0 0 1 18 0z"/></symbol>
+        <symbol id="icon-alert" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v4m0 4h.01M21 12a9 9 0 1 1-18 0a9 9 0 0 1 18 0z"/></symbol>
+        <symbol id="icon-info" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 16v-4m0-4h.01M21 12a9 9 0 1 1-18 0a9 9 0 0 1 18 0z"/></symbol>
+        <symbol id="icon-download" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4m4-5l5 5l5-5m-5 5V3"/></symbol>
+    </svg>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>
 </html>
