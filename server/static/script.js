@@ -10,7 +10,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const dashboardLink = document.querySelector('.nav-link[href="#icon-dashboard"]');
     const newScanLink = document.querySelector('.nav-link[href="#icon-target"]');
 
-    let currentActiveScanStep = 1; // Moved higher for broader scope
+    let currentActiveScanStep = 1;
+
+    // Elements for step sections and indicators (defined early for setActiveScanStep)
+    const scanStepSections = document.querySelectorAll('.scan-step-section');
+    const stepIndicators = document.querySelectorAll('.step-indicator');
 
     function setActiveScanStep(targetStepNumber) {
         scanStepSections.forEach(section => {
@@ -62,7 +66,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (dashboardLink) {
         dashboardLink.addEventListener('click', (e) => {
             e.preventDefault();
-            // currentActiveScanStep = 1; // Not needed here as setActiveView for dashboard doesn't use it.
+            // currentActiveScanStep = 1; // Resetting when explicitly clicking New Scan is enough
             setActiveView(dashboardContent);
         });
     }
@@ -70,12 +74,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (newScanLink) {
         newScanLink.addEventListener('click', (e) => {
             e.preventDefault();
-            currentActiveScanStep = 1; // Reset to step 1 when "New Scan" is explicitly clicked
+            currentActiveScanStep = 1;
             setActiveView(newScanContent);
         });
     }
 
-    // Initialize with dashboard view
     if (dashboardContent) {
          currentActiveScanStep = 1;
          setActiveView(dashboardContent);
@@ -84,8 +87,6 @@ document.addEventListener('DOMContentLoaded', () => {
         setActiveView(newScanContent);
     }
 
-
-    // --- SIDEBAR TOGGLE FOR MOBILE ---
     if (sidebarToggle && sidebar) {
         sidebarToggle.addEventListener('click', () => {
             sidebar.classList.toggle('open');
@@ -101,7 +102,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // --- DARK/LIGHT MODE TOGGLE ---
     if (themeToggle) {
         themeToggle.addEventListener('change', () => {
             if (themeToggle.checked) {
@@ -155,7 +155,7 @@ document.addEventListener('DOMContentLoaded', () => {
         ];
         sections.forEach(sec => {
             let shouldDisplay = false;
-            if (data[sec.dataKey] && Object.keys(data[sec.dataKey]).length > 0) { // Check if data[sec.dataKey] is not empty
+            if (data[sec.dataKey] && Object.keys(data[sec.dataKey]).length > 0) {
                 if (sec.checkNoRequestHeaders && !data.request_headers) shouldDisplay = true;
                 else if (sec.checkRequestHeaders && data.request_headers) shouldDisplay = true;
                 else if (!sec.checkNoRequestHeaders && !sec.checkRequestHeaders) shouldDisplay = true;
@@ -246,7 +246,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (proceedToFullScanBtn) {
         proceedToFullScanBtn.addEventListener('click', () => {
             if (quickScanAnalysisData) {
-                currentActiveScanStep = 1; // Start New Scan from Step 1, then populate for Step 2
+                currentActiveScanStep = 1; // Start New Scan from Step 1...
                 setActiveView(newScanContent);
                 populateNewScanStep2(quickScanAnalysisData); // This will then advance to Step 2
 
@@ -258,17 +258,14 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    const scanStepSections = document.querySelectorAll('.scan-step-section');
+    // const scanStepSections = document.querySelectorAll('.scan-step-section'); // Already defined globally for setActiveScanStep
     const collapsibleHeaders = document.querySelectorAll('.collapsible-header');
-    const stepIndicators = document.querySelectorAll('.step-indicator');
+    // const stepIndicators = document.querySelectorAll('.step-indicator'); // Already defined globally for setActiveScanStep
     const confirmParamsBtn = document.getElementById('confirm-params-btn');
     const proceedToLaunchBtn = document.getElementById('proceed-to-launch-btn');
-    // currentActiveScanStep is already defined globally
-
-    // setActiveScanStep is already defined globally with the correction
 
     if (newScanContent && newScanContent.style.display === 'block') {
-        setActiveScanStep(currentActiveScanStep); // Initialize with currentActiveScanStep (usually 1)
+        setActiveScanStep(currentActiveScanStep);
     }
 
     collapsibleHeaders.forEach(header => {
@@ -282,19 +279,15 @@ document.addEventListener('DOMContentLoaded', () => {
         indicator.addEventListener('click', () => {
             const stepNum = parseInt(indicator.dataset.step, 10);
             const targetStepIndicator = document.querySelector(`.step-indicator[data-step="${stepNum}"]`);
-            const previousStepIndicator = document.querySelector(`.step-indicator[data-step="${stepNum - 1}"]`);
-
             // Allow navigation if step is already completed, or is the current active step,
             // or if it's the next step and the current one is completed.
-            if (targetStepIndicator && (targetStepIndicator.classList.contains('completed') || targetStepIndicator.classList.contains('active') || (stepNum === currentActiveScanStep + 1 && document.querySelector(`.step-indicator[data-step="${currentActiveScanStep}"]`).classList.contains('completed')) )) {
+            if (targetStepIndicator &&
+                (targetStepIndicator.classList.contains('completed') ||
+                 targetStepIndicator.classList.contains('active') ||
+                 (stepNum === currentActiveScanStep + 1 && document.querySelector(`.step-indicator[data-step="${currentActiveScanStep}"]`)?.classList.contains('completed')) ||
+                 stepNum === 1 )) { // Always allow going back to step 1, or if next step & current is complete
                  setActiveScanStep(stepNum);
-            } else if (stepNum > 1 && previousStepIndicator && previousStepIndicator.classList.contains('completed')) {
-                 // Allow clicking on next if current is completed (this is covered by above)
-                 // This redundant check can be removed.
-            } else if (stepNum === 1) { // Always allow going back to step 1
-                setActiveScanStep(stepNum);
             }
-             // else: do nothing or show a message "Please complete previous steps."
         });
     });
 
@@ -332,7 +325,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const metricElapsedTime = document.getElementById('metric-elapsed-time');
     const metricEta = document.getElementById('metric-eta');
 
-    // let eventSource = null; // Not used with current backend SSE-via-POST
     let attackStartTime;
     let totalExpectedAttempts = 0;
     let currentAttempts = 0;
