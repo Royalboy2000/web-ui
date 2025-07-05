@@ -182,15 +182,246 @@
             </section>
 
             <section class="content-section" id="new-scan-content" style="display: none;">
-                <!-- Step 1: Define Target -->
-                <div class="section-header">
-                    <h1>New Scan: Step 1 - Define Target</h1>
+                <!-- Step Indicator -->
+                <div class="step-indicator-container card">
+                    <div class="step-indicator active" data-step="1">
+                        <span class="step-number">1</span>
+                        <span class="step-label">Target</span>
+                    </div>
+                    <div class="step-indicator-arrow">&rarr;</div>
+                    <div class="step-indicator" data-step="2">
+                        <span class="step-number">2</span>
+                        <span class="step-label">Parameters</span>
+                    </div>
+                    <div class="step-indicator-arrow">&rarr;</div>
+                    <div class="step-indicator" data-step="3">
+                        <span class="step-number">3</span>
+                        <span class="step-label">Credentials</span>
+                    </div>
+                    <div class="step-indicator-arrow">&rarr;</div>
+                    <div class="step-indicator" data-step="4">
+                        <span class="step-number">4</span>
+                        <span class="step-label">Monitor</span>
+                    </div>
                 </div>
-                <div class="card">
-                    <div class="card-grid">
-                        <div class="form-card"> <!-- Reusing form-card style for consistency -->
-                            <div class="card-header">
-                                <h2>Analyze Login Page URL</h2>
+
+                <!-- Step Sections -->
+                <div class="scan-step-section card" id="scan-step-1">
+                    <div class="section-header collapsible-header" data-target-step="1">
+                        <h1>Step 1: Define Target</h1>
+                        <svg class="icon icon-chevron-down"><use href="#icon-chevron-down"/></svg>
+                    </div>
+                    <div class="collapsible-content">
+                        <div class="card-grid">
+                            <div class="form-card">
+                                <div class="card-header">
+                                    <h2>Analyze Login Page URL</h2>
+                                </div>
+                                <form id="analyze-url-form">
+                                    <div class="form-group">
+                                        <input type="url" id="target-login-url" placeholder=" " required>
+                                        <label for="target-login-url">Login Page URL</label>
+                                    </div>
+                                    <button type="submit" class="button button-primary full-width">Analyze Page</button>
+                                </form>
+                            </div>
+                            <div class="form-card">
+                                 <div class="card-header">
+                                    <h2>Parse Raw HTTP Request</h2>
+                                </div>
+                                <form id="parse-request-form">
+                                    <div class="form-group">
+                                        <textarea id="raw-http-request" placeholder=" " style="height: 150px; width: 100%;" required></textarea>
+                                        <label for="raw-http-request">Paste Full HTTP Request</label>
+                                    </div>
+                                    <button type="submit" class="button button-primary full-width">Parse Request</button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="scan-step-section card" id="scan-step-2" style="display: none;">
+                    <div class="section-header collapsible-header" data-target-step="2">
+                        <h1>Step 2: Review & Configure Parameters</h1>
+                        <svg class="icon icon-chevron-down"><use href="#icon-chevron-down"/></svg>
+                    </div>
+                    <div class="collapsible-content" style="display: none;">
+                        <div class="card-grid">
+                            <div class="form-card">
+                                <div class="card-header"><h2>Detected Parameters</h2></div>
+                                <form id="parameters-form">
+                                    <div class="form-group">
+                                        <input type="text" id="detected-post-url" placeholder=" ">
+                                        <label for="detected-post-url">Form POST URL</label>
+                                    </div>
+                                    <div class="form-group">
+                                        <input type="text" id="detected-username-field" placeholder=" ">
+                                        <label for="detected-username-field">Username Field Name</label>
+                                    </div>
+                                    <div class="form-group">
+                                        <input type="text" id="detected-password-field" placeholder=" ">
+                                        <label for="detected-password-field">Password Field Name</label>
+                                    </div>
+                                    <div class="form-group">
+                                        <input type="text" id="detected-csrf-name" placeholder=" ">
+                                        <label for="detected-csrf-name">CSRF Token Name (if any)</label>
+                                    </div>
+                                    <div class="form-group">
+                                        <input type="text" id="detected-csrf-value" placeholder=" ">
+                                        <label for="detected-csrf-value">CSRF Token Value (if any)</label>
+                                    </div>
+                                    <div id="raw-request-params-display" style="display:none;">
+                                        <h4>Additional Parameters from Raw Request:</h4>
+                                        <pre id="raw-request-params-data"></pre>
+                                    </div>
+                                    <div id="raw-request-cookies-display" style="display:none;">
+                                        <h4>Cookies from Raw Request:</h4>
+                                        <pre id="raw-request-cookies-data"></pre>
+                                    </div>
+                                      <div id="analysis-cookies-display" style="display:none;">
+                                        <h4>Cookies from URL Analysis:</h4>
+                                        <pre id="analysis-cookies-data"></pre>
+                                    </div>
+                                    <button type="button" id="confirm-params-btn" class="button button-primary full-width" style="margin-top:1rem;">Confirm Parameters & Proceed</button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="scan-step-section card" id="scan-step-3" style="display: none;">
+                    <div class="section-header collapsible-header" data-target-step="3">
+                        <h1>Step 3: Provide Credentials</h1>
+                        <svg class="icon icon-chevron-down"><use href="#icon-chevron-down"/></svg>
+                    </div>
+                    <div class="collapsible-content" style="display: none;">
+                        <div class="card-grid">
+                             <div class="form-card">
+                                <div class="card-header"><h2>Upload Username:Password Combo File</h2></div>
+                                <form id="combo-file-form">
+                                    <div class="form-group">
+                                        <input type="file" id="combo-file-input" accept=".txt,.csv">
+                                        <label for="combo-file-input" class="button button-secondary" style="width:auto; margin-top: 5px;">Browse Combo File</label>
+                                        <p id="combo-file-name" style="margin-top: 5px; font-size: 0.9rem;"></p>
+                                    </div>
+                                </form>
+                            </div>
+                            <div class="form-card">
+                                <div class="card-header"><h2>Provide Separate Lists (if no combo file)</h2></div>
+                                <form id="separate-lists-form">
+                                    <div class="form-group">
+                                        <input type="file" id="username-list-input" accept=".txt,.csv">
+                                         <label for="username-list-input" class="button button-secondary" style="width:auto; margin-top: 5px;">Browse Username File</label>
+                                         <p id="username-list-file-name" style="margin-top: 5px; font-size: 0.9rem;"></p>
+                                        <input type="text" id="single-username-input" placeholder="Or type single username/email here" style="margin-top: 10px;">
+                                    </div>
+                                    <div class="form-group">
+                                        <input type="file" id="password-list-input" accept=".txt,.csv">
+                                        <label for="password-list-input" class="button button-secondary" style="width:auto; margin-top: 5px;">Browse Password File</label>
+                                        <p id="password-list-file-name" style="margin-top: 5px; font-size: 0.9rem;"></p>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                         <button type="button" id="proceed-to-launch-btn" class="button button-primary full-width" style="margin-top:1rem;">Proceed to Launch</button>
+                    </div>
+                </div>
+
+                <div class="scan-step-section card" id="scan-step-4" style="display: none;">
+                    <div class="section-header collapsible-header" data-target-step="4">
+                        <h1>Step 4: Launch & Monitor</h1>
+                        <svg class="icon icon-chevron-down"><use href="#icon-chevron-down"/></svg>
+                    </div>
+                    <div class="collapsible-content" style="display: none;">
+                        <button id="launch-attack-btn" class="button button-primary full-width" style="margin-bottom: var(--spacing-4); background: linear-gradient(45deg, var(--color-error), var(--color-warning));">Launch Attack</button>
+
+                        <div class="card-grid" style="gap: var(--spacing-4); margin-bottom: var(--spacing-4);">
+                            <!-- Metrics cards -->
+                            <div class="stat-card" style="background-color: var(--color-secondary); padding: var(--spacing-3);">
+                                <div class="card-content">
+                                    <p class="stat-label" style="font-size: 0.8rem;">Total Attempts</p>
+                                    <p class="stat-value" id="metric-total-attempts" style="font-size: 1.5rem;">0/0</p>
+                                </div>
+                            </div>
+                            <div class="stat-card" style="background-color: var(--color-secondary); padding: var(--spacing-3);">
+                                <div class="card-content">
+                                    <p class="stat-label" style="font-size: 0.8rem;">Hits</p>
+                                    <p class="stat-value" id="metric-hits" style="font-size: 1.5rem; color: var(--color-success);">0</p>
+                                </div>
+                            </div>
+                            <div class="stat-card" style="background-color: var(--color-secondary); padding: var(--spacing-3);">
+                                <div class="card-content">
+                                    <p class="stat-label" style="font-size: 0.8rem;">Elapsed Time</p>
+                                    <p class="stat-value" id="metric-elapsed-time" style="font-size: 1.5rem;">00:00:00</p>
+                                </div>
+                            </div>
+                             <div class="stat-card" style="background-color: var(--color-secondary); padding: var(--spacing-3);">
+                                <div class="card-content">
+                                    <p class="stat-label" style="font-size: 0.8rem;">ETA</p>
+                                    <p class="stat-value" id="metric-eta" style="font-size: 1.5rem;">--:--:--</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="log-filter-controls" style="margin-bottom: var(--spacing-3); text-align: right;">
+                            <span style="margin-right: var(--spacing-2); font-weight: 500;">Filter:</span>
+                            <button class="button button-secondary button-sm" data-filter="all">All</button>
+                            <button class="button button-secondary button-sm" data-filter="success">Success</button>
+                            <button class="button button-secondary button-sm" data-filter="failure">Failure</button>
+                            <button class="button button-secondary button-sm" data-filter="error">Error/Unknown</button>
+                        </div>
+
+                        <div class="table-responsive-wrapper" style="overflow-x: auto;">
+                            <table id="live-feed-table" class="styled-table" style="width:100%;">
+                                <thead>
+                                    <tr>
+                                        <th>#</th>
+                                        <th>Timestamp</th>
+                                        <th>Username</th>
+                                        <th>Password</th>
+                                        <th>Status</th>
+                                        <th>HTTP Code</th>
+                                        <th>Length</th>
+                                        <th>Details</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="live-feed-tbody">
+                                    <!-- Log rows will be appended here by JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                        <div id="live-feed-placeholder" style="display: none; text-align: center; padding: var(--spacing-6); color: var(--color-text-secondary);">
+                            <p>[INFO] Awaiting attack initiation...</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Details Modal -->
+            <div id="log-details-modal" class="modal" style="display: none;">
+                <div class="modal-content card" style="max-width: 800px;">
+                    <div class="modal-header card-header">
+                        <h2 id="modal-title">Attempt Details</h2>
+                        <button id="modal-close-btn" class="icon-button">&times;</button>
+                    </div>
+                    <div class="modal-body" style="padding: var(--spacing-6);">
+                        <h4>Request Information:</h4>
+                        <pre id="modal-request-info"></pre>
+                        <h4>Response Information:</h4>
+                        <pre id="modal-response-info"></pre>
+                        <h4>Analysis Summary:</h4>
+                        <pre id="modal-analysis-summary"></pre>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <svg style="display: none;">
+        <symbol id="icon-dashboard" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 13V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zm0 0l6-3l6 3m-6-8v11"/></symbol>
+        <symbol id="icon-target" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 21a9 9 0 1 0-9-9a9 9 0 0 0 9 9zm0-4a5 5 0 1 0-5-5a5 5 0 0 0 5 5zm0-2a3 3 0 1 0-3-3a3 3 0 0 0 3 3z"/></symbol>
                             </div>
                             <form id="analyze-url-form">
                                 <div class="form-group">

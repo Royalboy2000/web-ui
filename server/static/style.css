@@ -781,6 +781,243 @@ html[data-theme='light'] #new-scan-content .form-group input[type="file"] {
      color: var(--color-text-primary);
 }
 
+/* New Scan Page - Step Indicator */
+.step-indicator-container {
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    padding: var(--spacing-4);
+    margin-bottom: var(--spacing-6);
+    border-radius: var(--border-radius-md); /* Already a card, so this might be redundant */
+}
+
+.step-indicator {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    padding: var(--spacing-2);
+    border-radius: var(--border-radius-sm);
+    transition: background-color var(--transition-base);
+}
+.step-indicator:hover {
+    background-color: rgba(var(--color-primary-rgb), 0.1); /* Define --color-primary-rgb */
+}
+/* Define --color-primary-rgb if not already globally defined */
+:root {
+    --color-primary-rgb: 59, 130, 246; /* From --color-primary: #3b82f6; */
+}
+html[data-theme='light'] {
+    --color-primary-rgb: 37, 99, 235; /* From light theme --color-primary: #2563eb; */
+}
+
+
+.step-indicator .step-number {
+    font-size: 0.9rem;
+    font-weight: 600;
+    background-color: var(--color-secondary);
+    color: var(--color-text-secondary);
+    border-radius: 50%;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: var(--spacing-2);
+    border: 2px solid var(--color-border);
+}
+
+.step-indicator .step-label {
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+.step-indicator.active .step-number {
+    background-color: var(--color-primary);
+    color: white;
+    border-color: var(--color-primary);
+}
+.step-indicator.active .step-label {
+    color: var(--color-primary);
+    font-weight: 700;
+}
+
+.step-indicator.completed .step-number {
+    background-color: var(--color-success);
+    color: white;
+    border-color: var(--color-success);
+}
+.step-indicator.completed .step-label {
+    color: var(--color-text-secondary); /* Or var(--color-success) if preferred */
+}
+.step-indicator.completed:hover .step-label {
+    color: var(--color-text-primary);
+}
+
+
+.step-indicator-arrow {
+    color: var(--color-text-secondary);
+    font-size: 1.5rem;
+}
+
+/* New Scan Page - Collapsible Sections */
+.scan-step-section {
+    margin-bottom: var(--spacing-4);
+}
+.collapsible-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    padding: var(--spacing-4); /* Use card's default padding or define here */
+    /* background-color: var(--color-surface); /* Already part of .card */
+    /* border-bottom: 1px solid var(--color-border); */ /* Card has border already */
+}
+.collapsible-header h1 {
+    font-size: 1.25rem; /* Match card-header h2 */
+    margin-bottom: 0; /* Override default h1 margin */
+}
+.collapsible-header .icon-chevron-down {
+    transition: transform var(--transition-base);
+}
+/* Rotation is handled by JS: style.transform = 'rotate(180deg)' */
+
+.collapsible-content {
+    padding: var(--spacing-4); /* Content padding inside the card */
+    /* border-top: 1px solid var(--color-border); /* If header doesn't have bottom border */
+}
+
+
+/* New Scan Page - Structured Log Table */
+.table-responsive-wrapper {
+    overflow-x: auto; /* Ensure table is scrollable on small screens */
+    margin-bottom: var(--spacing-4);
+}
+.styled-table {
+    width: 100%;
+    border-collapse: collapse; /* remove "collapse" if using "border-spacing" */
+    /* border-spacing: 0; */ /* Use with border-collapse: separate; if preferred */
+    font-size: 0.9rem;
+}
+.styled-table th, .styled-table td {
+    padding: var(--spacing-3) var(--spacing-4);
+    text-align: left;
+    border-bottom: 1px solid var(--color-border);
+    white-space: nowrap; /* Prevent text wrapping initially */
+}
+.styled-table th {
+    color: var(--color-text-secondary);
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 600;
+    background-color: var(--color-secondary); /* Header background */
+}
+.styled-table tbody tr:hover {
+    background-color: rgba(var(--color-primary-rgb), 0.05);
+}
+.styled-table td .button-sm { /* For View Details button */
+    padding: var(--spacing-1) var(--spacing-2);
+    font-size: 0.8rem;
+}
+
+/* Status cell styling */
+.styled-table .status-success { color: var(--color-success); font-weight: bold; }
+.styled-table .status-failure { color: var(--color-error); font-weight: bold; }
+.styled-table .status-unknown { color: var(--color-warning); }
+.styled-table .status-error { color: var(--color-error); font-weight: bold; } /* For actual client/server errors */
+.styled-table .status-info { color: var(--color-primary); }
+
+
+/* Log Filter Controls */
+.log-filter-controls {
+    margin-bottom: var(--spacing-3);
+    text-align: right; /* Or flex justify-end */
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: var(--spacing-2);
+}
+.log-filter-controls .button-sm { /* Make filter buttons smaller */
+    padding: var(--spacing-1) var(--spacing-3);
+    font-size: 0.85rem;
+}
+
+
+/* Modal Styling */
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.6);
+    display: flex; /* Used 'flex' in JS for display:none toggle */
+    align-items: center;
+    justify-content: center;
+    z-index: 1000; /* Ensure it's on top */
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity var(--transition-base), visibility var(--transition-base);
+}
+.modal[style*="display: flex"] { /* When display is set to flex by JS */
+    opacity: 1;
+    visibility: visible;
+}
+
+.modal-content {
+    background-color: var(--color-surface);
+    border-radius: var(--border-radius-lg);
+    box-shadow: var(--shadow-md);
+    width: 90%;
+    max-width: 800px; /* Max width for the modal */
+    max-height: 80vh; /* Max height */
+    display: flex;
+    flex-direction: column;
+}
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--spacing-4); /* Use card-header padding */
+    border-bottom: 1px solid var(--color-border);
+}
+.modal-header h2 {
+    font-size: 1.25rem; /* Match card-header h2 */
+    margin: 0;
+}
+.modal-body {
+    padding: var(--spacing-4); /* Content padding */
+    overflow-y: auto; /* Scroll if content overflows */
+}
+.modal-body h4 {
+    font-size: 1rem;
+    margin-top: var(--spacing-4);
+    margin-bottom: var(--spacing-2);
+    color: var(--color-text-primary);
+}
+.modal-body pre { /* Style for pre tags inside modal */
+    background-color: var(--color-secondary);
+    padding: var(--spacing-3);
+    border-radius: var(--border-radius-sm);
+    border: 1px solid var(--color-border);
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
+    font-size: 0.85rem;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    max-height: 250px; /* Scrollable pre */
+    overflow-y: auto;
+}
+#modal-close-btn.icon-button { /* Ensure close button is styled like other icon buttons */
+    color: var(--color-text-secondary);
+    font-size: 1.5rem; /* Make X larger */
+}
+#modal-close-btn.icon-button:hover {
+    color: var(--color-text-primary);
+    background-color: var(--color-secondary);
+}
+
 /* Styles for Quick Scan Card dynamic elements on Dashboard */
 #quick-scan-loading p {
     color: var(--color-text-secondary);
