@@ -130,7 +130,7 @@
                             <button type="submit" class="button button-primary full-width" id="quick-scan-now-btn">Scan Now</button>
                         </form>
                         <div id="quick-scan-loading" style="display: none; text-align: center; margin-top: 10px;">
-                            <p>Analyzing...</p> <!-- Basic spinner, can be enhanced with CSS -->
+                            <p>Analyzing...</p>
                         </div>
                         <div id="quick-scan-error" style="display: none; color: var(--color-error); margin-top: 10px;">
                             {error message here}
@@ -416,158 +416,8 @@
                 </div>
             </div>
 
-        </main>
-    </div>
+            <!-- NO DUPLICATED SECTION HERE IN THE CORRECTED VERSION -->
 
-    <svg style="display: none;">
-        <symbol id="icon-dashboard" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 13V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zm0 0l6-3l6 3m-6-8v11"/></symbol>
-        <symbol id="icon-target" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 21a9 9 0 1 0-9-9a9 9 0 0 0 9 9zm0-4a5 5 0 1 0-5-5a5 5 0 0 0 5 5zm0-2a3 3 0 1 0-3-3a3 3 0 0 0 3 3z"/></symbol>
-                            </div>
-                            <form id="analyze-url-form">
-                                <div class="form-group">
-                                    <input type="url" id="target-login-url" placeholder=" " required>
-                                    <label for="target-login-url">Login Page URL</label>
-                                </div>
-                                <button type="submit" class="button button-primary full-width">Analyze Page</button>
-                            </form>
-                        </div>
-                        <div class="form-card">
-                             <div class="card-header">
-                                <h2>Parse Raw HTTP Request</h2>
-                            </div>
-                            <form id="parse-request-form">
-                                <div class="form-group">
-                                    <textarea id="raw-http-request" placeholder=" " style="height: 150px; width: 100%;" required></textarea>
-                                    <label for="raw-http-request">Paste Full HTTP Request</label>
-                                </div>
-                                <button type="submit" class="button button-primary full-width">Parse Request</button>
-                            </form>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Step 2: Review & Configure -->
-                <div class="section-header" style="margin-top: var(--spacing-8);">
-                    <h1>New Scan: Step 2 - Review & Configure Parameters</h1>
-                </div>
-                <div class="card" id="review-parameters-section" > <!-- Initially hidden/disabled appearance via JS/CSS -->
-                    <div class="card-grid">
-                        <div class="form-card">
-                            <div class="card-header"><h2>Detected Parameters</h2></div>
-                            <form id="parameters-form">
-                                <div class="form-group">
-                                    <input type="text" id="detected-post-url" placeholder=" ">
-                                    <label for="detected-post-url">Form POST URL</label>
-                                </div>
-                                <div class="form-group">
-                                    <input type="text" id="detected-username-field" placeholder=" ">
-                                    <label for="detected-username-field">Username Field Name</label>
-                                </div>
-                                <div class="form-group">
-                                    <input type="text" id="detected-password-field" placeholder=" ">
-                                    <label for="detected-password-field">Password Field Name</label>
-                                </div>
-                                <div class="form-group">
-                                    <input type="text" id="detected-csrf-name" placeholder=" ">
-                                    <label for="detected-csrf-name">CSRF Token Name (if any)</label>
-                                </div>
-                                <div class="form-group">
-                                    <input type="text" id="detected-csrf-value" placeholder=" ">
-                                    <label for="detected-csrf-value">CSRF Token Value (if any)</label>
-                                </div>
-                                <!-- Add display for form_parameters and cookies if parsed from raw request -->
-                                <div id="raw-request-params-display" style="display:none;">
-                                    <h4>Additional Parameters from Raw Request:</h4>
-                                    <pre id="raw-request-params-data"></pre>
-                                </div>
-                                <div id="raw-request-cookies-display" style="display:none;">
-                                    <h4>Cookies from Raw Request:</h4>
-                                    <pre id="raw-request-cookies-data"></pre>
-                                </div>
-                                  <div id="analysis-cookies-display" style="display:none;">
-                                    <h4>Cookies from URL Analysis:</h4>
-                                    <pre id="analysis-cookies-data"></pre>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Step 3: Provide Credentials -->
-                <div class="section-header" style="margin-top: var(--spacing-8);">
-                    <h1>New Scan: Step 3 - Provide Credentials</h1>
-                </div>
-                <div class="card" id="credentials-section"> <!-- Initially hidden/disabled appearance via JS/CSS -->
-                    <div class="card-grid">
-                         <div class="form-card">
-                            <div class="card-header"><h2>Upload Username:Password Combo File</h2></div>
-                            <form id="combo-file-form">
-                                <div class="form-group">
-                                    <input type="file" id="combo-file-input" accept=".txt,.csv">
-                                    <label for="combo-file-input" class="button button-secondary" style="width:auto; margin-top: 5px;">Browse Combo File</label>
-                                    <p id="combo-file-name" style="margin-top: 5px; font-size: 0.9rem;"></p>
-                                </div>
-                            </form>
-                        </div>
-                        <div class="form-card">
-                            <div class="card-header"><h2>Provide Separate Lists (if no combo file)</h2></div>
-                            <form id="separate-lists-form">
-                                <div class="form-group">
-                                    <input type="file" id="username-list-input" accept=".txt,.csv">
-                                     <label for="username-list-input" class="button button-secondary" style="width:auto; margin-top: 5px;">Browse Username File</label>
-                                     <p id="username-list-file-name" style="margin-top: 5px; font-size: 0.9rem;"></p>
-                                    <input type="text" id="single-username-input" placeholder="Or type single username/email here" style="margin-top: 10px;">
-                                </div>
-                                <div class="form-group">
-                                    <input type="file" id="password-list-input" accept=".txt,.csv">
-                                    <label for="password-list-input" class="button button-secondary" style="width:auto; margin-top: 5px;">Browse Password File</label>
-                                    <p id="password-list-file-name" style="margin-top: 5px; font-size: 0.9rem;"></p>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Step 4: Launch & Monitor -->
-                <div class="section-header" style="margin-top: var(--spacing-8);">
-                    <h1>New Scan: Step 4 - Launch & Monitor</h1>
-                </div>
-                <div class="card" id="launch-monitor-section"> <!-- Initially hidden/disabled appearance via JS/CSS -->
-                    <button id="launch-attack-btn" class="button button-primary full-width" style="margin-bottom: var(--spacing-4); background: linear-gradient(45deg, var(--color-error), var(--color-warning));">Launch Attack</button>
-
-                    <div class="card-grid" style="gap: var(--spacing-4); margin-bottom: var(--spacing-4);">
-                        <div class="stat-card" style="background-color: var(--color-secondary); padding: var(--spacing-3);">
-                            <div class="card-content">
-                                <p class="stat-label" style="font-size: 0.8rem;">Total Attempts</p>
-                                <p class="stat-value" id="metric-total-attempts" style="font-size: 1.5rem;">0</p>
-                            </div>
-                        </div>
-                        <div class="stat-card" style="background-color: var(--color-secondary); padding: var(--spacing-3);">
-                            <div class="card-content">
-                                <p class="stat-label" style="font-size: 0.8rem;">Hits</p>
-                                <p class="stat-value" id="metric-hits" style="font-size: 1.5rem; color: var(--color-success);">0</p>
-                            </div>
-                        </div>
-                        <div class="stat-card" style="background-color: var(--color-secondary); padding: var(--spacing-3);">
-                            <div class="card-content">
-                                <p class="stat-label" style="font-size: 0.8rem;">Elapsed Time</p>
-                                <p class="stat-value" id="metric-elapsed-time" style="font-size: 1.5rem;">00:00:00</p>
-                            </div>
-                        </div>
-                         <div class="stat-card" style="background-color: var(--color-secondary); padding: var(--spacing-3);">
-                            <div class="card-content">
-                                <p class="stat-label" style="font-size: 0.8rem;">ETA</p>
-                                <p class="stat-value" id="metric-eta" style="font-size: 1.5rem;">--:--:--</p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div id="live-feed-container" style="background-color: var(--color-background); border: 1px solid var(--color-border); border-radius: var(--border-radius-md); padding: var(--spacing-4); height: 400px; overflow-y: auto; font-family: monospace; font-size: 0.9rem;">
-                        <p>[INFO] Awaiting attack initiation...</p>
-                        <!-- Live feed messages will be appended here -->
-                    </div>
-                </div>
-            </section>
         </main>
     </div>
 
