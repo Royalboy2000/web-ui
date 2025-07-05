@@ -10,6 +10,35 @@ document.addEventListener('DOMContentLoaded', () => {
     const dashboardLink = document.querySelector('.nav-link[href="#icon-dashboard"]');
     const newScanLink = document.querySelector('.nav-link[href="#icon-target"]');
 
+    let currentActiveScanStep = 1; // Moved higher for broader scope
+
+    function setActiveScanStep(targetStepNumber) {
+        scanStepSections.forEach(section => {
+            section.style.display = 'block'; // CORRECTED: Ensure all step section containers are visible first
+
+            const sectionContent = section.querySelector('.collapsible-content');
+            const headerIcon = section.querySelector('.collapsible-header .icon-chevron-down');
+
+            if (section.id === `scan-step-${targetStepNumber}`) {
+                if (sectionContent) sectionContent.style.display = 'block';
+                if (headerIcon) headerIcon.style.transform = 'rotate(180deg)';
+            } else {
+                 if (sectionContent) sectionContent.style.display = 'none';
+                 if (headerIcon) headerIcon.style.transform = 'rotate(0deg)';
+            }
+        });
+
+        stepIndicators.forEach(indicator => {
+            const step = parseInt(indicator.dataset.step, 10);
+            indicator.classList.remove('active', 'completed');
+            if (step < targetStepNumber) {
+                indicator.classList.add('completed');
+            } else if (step === targetStepNumber) {
+                indicator.classList.add('active');
+            }
+        });
+        currentActiveScanStep = targetStepNumber;
+    }
 
     function setActiveView(viewToShow) {
         if (dashboardContent) dashboardContent.style.display = 'none';
@@ -33,7 +62,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (dashboardLink) {
         dashboardLink.addEventListener('click', (e) => {
             e.preventDefault();
-            currentActiveScanStep = 1;
+            // currentActiveScanStep = 1; // Not needed here as setActiveView for dashboard doesn't use it.
             setActiveView(dashboardContent);
         });
     }
@@ -41,18 +70,22 @@ document.addEventListener('DOMContentLoaded', () => {
     if (newScanLink) {
         newScanLink.addEventListener('click', (e) => {
             e.preventDefault();
-            currentActiveScanStep = 1;
+            currentActiveScanStep = 1; // Reset to step 1 when "New Scan" is explicitly clicked
             setActiveView(newScanContent);
         });
     }
 
+    // Initialize with dashboard view
     if (dashboardContent) {
          currentActiveScanStep = 1;
          setActiveView(dashboardContent);
     } else if (newScanContent) {
+        currentActiveScanStep = 1;
         setActiveView(newScanContent);
     }
 
+
+    // --- SIDEBAR TOGGLE FOR MOBILE ---
     if (sidebarToggle && sidebar) {
         sidebarToggle.addEventListener('click', () => {
             sidebar.classList.toggle('open');
@@ -68,6 +101,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // --- DARK/LIGHT MODE TOGGLE ---
     if (themeToggle) {
         themeToggle.addEventListener('change', () => {
             if (themeToggle.checked) {
@@ -121,7 +155,7 @@ document.addEventListener('DOMContentLoaded', () => {
         ];
         sections.forEach(sec => {
             let shouldDisplay = false;
-            if (data[sec.dataKey]) {
+            if (data[sec.dataKey] && Object.keys(data[sec.dataKey]).length > 0) { // Check if data[sec.dataKey] is not empty
                 if (sec.checkNoRequestHeaders && !data.request_headers) shouldDisplay = true;
                 else if (sec.checkRequestHeaders && data.request_headers) shouldDisplay = true;
                 else if (!sec.checkNoRequestHeaders && !sec.checkRequestHeaders) shouldDisplay = true;
@@ -212,9 +246,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (proceedToFullScanBtn) {
         proceedToFullScanBtn.addEventListener('click', () => {
             if (quickScanAnalysisData) {
-                currentActiveScanStep = 2; // Target step 2 on New Scan page
+                currentActiveScanStep = 1; // Start New Scan from Step 1, then populate for Step 2
                 setActiveView(newScanContent);
-                populateNewScanStep2(quickScanAnalysisData);
+                populateNewScanStep2(quickScanAnalysisData); // This will then advance to Step 2
+
                 if (quickScanResultsDiv) quickScanResultsDiv.style.display = 'none';
                 if (quickScanErrorDiv) quickScanErrorDiv.style.display = 'none';
                 if (quickScanUrlInput) quickScanUrlInput.value = '';
@@ -228,32 +263,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const stepIndicators = document.querySelectorAll('.step-indicator');
     const confirmParamsBtn = document.getElementById('confirm-params-btn');
     const proceedToLaunchBtn = document.getElementById('proceed-to-launch-btn');
-    let currentActiveScanStep = 1;
+    // currentActiveScanStep is already defined globally
 
-    function setActiveScanStep(targetStepNumber) {
-        scanStepSections.forEach(section => {
-            const sectionContent = section.querySelector('.collapsible-content');
-            const headerIcon = section.querySelector('.collapsible-header .icon-chevron-down');
-            if (section.id === `scan-step-${targetStepNumber}`) {
-                section.style.display = 'block';
-                if (sectionContent) sectionContent.style.display = 'block';
-                if (headerIcon) headerIcon.style.transform = 'rotate(180deg)';
-            } else {
-                 if (sectionContent) sectionContent.style.display = 'none';
-                 if (headerIcon) headerIcon.style.transform = 'rotate(0deg)';
-            }
-        });
-        stepIndicators.forEach(indicator => {
-            const step = parseInt(indicator.dataset.step, 10);
-            indicator.classList.remove('active', 'completed');
-            if (step < targetStepNumber) indicator.classList.add('completed');
-            else if (step === targetStepNumber) indicator.classList.add('active');
-        });
-        currentActiveScanStep = targetStepNumber;
-    }
+    // setActiveScanStep is already defined globally with the correction
 
     if (newScanContent && newScanContent.style.display === 'block') {
-        setActiveScanStep(1);
+        setActiveScanStep(currentActiveScanStep); // Initialize with currentActiveScanStep (usually 1)
     }
 
     collapsibleHeaders.forEach(header => {
@@ -266,10 +281,20 @@ document.addEventListener('DOMContentLoaded', () => {
     stepIndicators.forEach(indicator => {
         indicator.addEventListener('click', () => {
             const stepNum = parseInt(indicator.dataset.step, 10);
+            const targetStepIndicator = document.querySelector(`.step-indicator[data-step="${stepNum}"]`);
             const previousStepIndicator = document.querySelector(`.step-indicator[data-step="${stepNum - 1}"]`);
-            if (stepNum <= currentActiveScanStep || indicator.classList.contains('active') || (previousStepIndicator && previousStepIndicator.classList.contains('completed'))) {
+
+            // Allow navigation if step is already completed, or is the current active step,
+            // or if it's the next step and the current one is completed.
+            if (targetStepIndicator && (targetStepIndicator.classList.contains('completed') || targetStepIndicator.classList.contains('active') || (stepNum === currentActiveScanStep + 1 && document.querySelector(`.step-indicator[data-step="${currentActiveScanStep}"]`).classList.contains('completed')) )) {
                  setActiveScanStep(stepNum);
+            } else if (stepNum > 1 && previousStepIndicator && previousStepIndicator.classList.contains('completed')) {
+                 // Allow clicking on next if current is completed (this is covered by above)
+                 // This redundant check can be removed.
+            } else if (stepNum === 1) { // Always allow going back to step 1
+                setActiveScanStep(stepNum);
             }
+             // else: do nothing or show a message "Please complete previous steps."
         });
     });
 
@@ -307,7 +332,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const metricElapsedTime = document.getElementById('metric-elapsed-time');
     const metricEta = document.getElementById('metric-eta');
 
-    let eventSource = null; // Not used due to backend POST for SSE
+    // let eventSource = null; // Not used with current backend SSE-via-POST
     let attackStartTime;
     let totalExpectedAttempts = 0;
     let currentAttempts = 0;
@@ -404,13 +429,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function resetAttackMetrics() {
         currentAttempts = 0; hits = 0; totalExpectedAttempts = 0;
-        logEntries = []; // Clear log entries array
-        if (liveFeedTbody) liveFeedTbody.innerHTML = ''; // Clear table
+        logEntries = [];
+        if (liveFeedTbody) liveFeedTbody.innerHTML = '';
         if (liveFeedPlaceholder) {
             liveFeedPlaceholder.textContent = "[INFO] Awaiting attack initiation...";
             liveFeedPlaceholder.style.display = 'block';
         }
-        // Reset filter buttons to "All"
         currentLogFilter = 'all';
         logFilterButtons.forEach(btn => {
             btn.classList.remove('button-primary'); btn.classList.add('button-secondary');
@@ -447,20 +471,17 @@ document.addEventListener('DOMContentLoaded', () => {
     function handleSseEvent(data) {
         if (data.type === 'info' && data.total_expected_attempts !== undefined) {
             totalExpectedAttempts = data.total_expected_attempts;
-            if (liveFeedTbody) liveFeedTbody.innerHTML = ''; // Clear previous "awaiting" message if any
-            if (liveFeedPlaceholder) liveFeedPlaceholder.style.display = 'none'; // Hide placeholder once data starts
-            logEntries = []; // Reset for new batch of attempts
-            currentAttempts = 0; // Reset current attempts for this batch
-            hits = 0; // Reset hits for this batch
+            if (liveFeedTbody) liveFeedTbody.innerHTML = '';
+            if (liveFeedPlaceholder) liveFeedPlaceholder.style.display = 'none';
+            logEntries = [];
+            currentAttempts = 0;
+            hits = 0;
              if (metricTotalAttempts) metricTotalAttempts.textContent = `0/${totalExpectedAttempts}`;
-            // Add initial info message to table or a dedicated status area if desired.
-            // For now, the metrics update.
             return;
         }
 
         if (data.status === 'complete') {
-            // appendToLiveFeed(data.message || 'Attack complete.', 'info'); // Old way
-            if(liveFeedTbody && liveFeedTbody.rows.length === 0 && totalExpectedAttempts === 0){ // No attempts were made
+            if(liveFeedTbody && liveFeedTbody.rows.length === 0 && totalExpectedAttempts === 0){
                 if(liveFeedPlaceholder) {
                     liveFeedPlaceholder.textContent = data.message || 'No attempts made or attack complete.';
                     liveFeedPlaceholder.style.display = 'block';
@@ -474,12 +495,12 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        currentAttempts++; // Increment for actual attempt data
-        data.attemptNumber = currentAttempts; // Add attempt number to data
-        logEntries.push(data); // Store full data for modal
+        currentAttempts++;
+        data.attemptNumber = currentAttempts;
+        logEntries.push(data);
 
         if (!liveFeedTbody || !liveFeedPlaceholder) return;
-        liveFeedPlaceholder.style.display = 'none'; // Hide placeholder as we are adding rows
+        liveFeedPlaceholder.style.display = 'none';
 
         const row = liveFeedTbody.insertRow();
         row.dataset.status = data.status ? data.status.toLowerCase() : 'unknown';
@@ -503,7 +524,7 @@ document.addEventListener('DOMContentLoaded', () => {
         detailsButton.onclick = () => showLogDetails(logEntries.length - 1);
         row.insertCell().appendChild(detailsButton);
 
-        applyLogFilter(); // Apply current filter to new row
+        applyLogFilter();
 
         if (data.status === 'success') {
             hits++;
@@ -518,7 +539,7 @@ document.addEventListener('DOMContentLoaded', () => {
             alert('Please analyze a URL or parse a request first (Step 1 & 2).');
             return;
         }
-        resetAttackMetrics(); // This now also clears table and logEntries
+        resetAttackMetrics();
 
         let authFileContent = null;
         let usernameList = [];
@@ -568,13 +589,11 @@ document.addEventListener('DOMContentLoaded', () => {
         attackStartTime = new Date();
         elapsedTimeInterval = setInterval(updateElapsedTime, 1000);
 
-        // The old appendToLiveFeed is replaced by direct table manipulation in handleSseEvent
-        // Initial message can be set on placeholder or first row.
         if (liveFeedPlaceholder) {
             liveFeedPlaceholder.textContent = "[INFO] Initiating attack stream...";
             liveFeedPlaceholder.style.display = 'block';
         }
-        if(liveFeedTbody) liveFeedTbody.innerHTML = ''; // Clear any old rows before starting
+        if(liveFeedTbody) liveFeedTbody.innerHTML = '';
 
         fetch('/test_credentials', {
             method: 'POST',
@@ -587,8 +606,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const decoder = new TextDecoder();
             function processText({ done, value }) {
                 if (done) {
-                    // appendToLiveFeed('Attack stream finished.', 'info'); // Old way
-                    // Check if any rows were added, if not, show a completion message in placeholder
                     if (liveFeedTbody && liveFeedTbody.rows.length === 0 && liveFeedPlaceholder) {
                         liveFeedPlaceholder.textContent = "Attack finished. No attempts processed or all filtered out.";
                         liveFeedPlaceholder.style.display = 'block';
@@ -609,7 +626,6 @@ document.addEventListener('DOMContentLoaded', () => {
                                 handleSseEvent(eventData);
                             } catch (e) {
                                 console.error('Error parsing SSE JSON:', e, jsonData);
-                                // Consider adding this error to the log table as an error type event
                                 handleSseEvent({ status: 'error', details: `Error parsing event: ${jsonData.substring(0,100)}`});
                             }
                         }
@@ -621,12 +637,11 @@ document.addEventListener('DOMContentLoaded', () => {
         })
         .catch(error => {
             console.error('Error launching attack / reading stream:', error);
-            // appendToLiveFeed(`Error launching attack: ${error.message}`, 'error'); // Old way
             if(liveFeedPlaceholder){
                  liveFeedPlaceholder.textContent = `Error launching attack: ${error.message}`;
                  liveFeedPlaceholder.style.display = 'block';
             }
-            if(liveFeedTbody) liveFeedTbody.innerHTML = ''; // Clear table on error
+            if(liveFeedTbody) liveFeedTbody.innerHTML = '';
             clearInterval(elapsedTimeInterval);
         });
     }
