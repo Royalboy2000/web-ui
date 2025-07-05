@@ -92,9 +92,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- NEW SCAN PAGE LOGIC ---
-    const analyzeUrlForm = document.getElementById('analyze-url-form');
-    const targetLoginUrlInput = document.getElementById('target-login-url');
+    // --- NEW SCAN PAGE LOGIC (and elements shared with Quick Scan) ---
+    const analyzeUrlForm = document.getElementById('analyze-url-form'); // On New Scan Page
+    const targetLoginUrlInput = document.getElementById('target-login-url'); // On New Scan Page
     const parseRequestForm = document.getElementById('parse-request-form');
     const rawHttpRequestInput = document.getElementById('raw-http-request');
 
@@ -112,11 +112,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const analysisCookiesData = document.getElementById('analysis-cookies-data');
 
 
-    // Store analysis results globally for Step 3
+    // Store analysis results globally for Step 3 and for Quick Scan -> Full Scan transition
     let currentAnalysisResult = null;
+    let quickScanAnalysisData = null; // To hold data from quick scan specifically
 
-    function displayAnalysisResults(data) {
-        currentAnalysisResult = data; // Store for later use by launch attack
+    // Populates the Step 2 ("Review & Configure") on the "New Scan" page
+    function populateNewScanStep2(data) {
+        currentAnalysisResult = data; // Also set this for the main scan workflow
 
         if (detectedPostUrlInput) detectedPostUrlInput.value = data.post_url || '';
         if (detectedUsernameFieldInput) detectedUsernameFieldInput.value = data.username_field_name || '';
@@ -124,43 +126,42 @@ document.addEventListener('DOMContentLoaded', () => {
         if (detectedCsrfNameInput) detectedCsrfNameInput.value = data.csrf_token_name || '';
         if (detectedCsrfValueInput) detectedCsrfValueInput.value = data.csrf_token_value || '';
 
-        if (data.form_parameters && rawRequestParamsDisplay && rawRequestParamsData) {
-            rawRequestParamsData.textContent = JSON.stringify(data.form_parameters, null, 2);
-            rawRequestParamsDisplay.style.display = 'block';
-        } else if (rawRequestParamsDisplay) {
-            rawRequestParamsDisplay.style.display = 'none';
-        }
+        // Show/hide and populate sections for additional parameters and cookies
+        const sections = [
+            { dataKey: 'form_parameters', displayDiv: rawRequestParamsDisplay, preTag: rawRequestParamsData },
+            { dataKey: 'cookies', displayDiv: analysisCookiesDisplay, preTag: analysisCookiesData, checkNoRequestHeaders: true }, // For URL Analysis cookies
+            { dataKey: 'cookies', displayDiv: rawRequestCookiesDisplay, preTag: rawRequestCookiesData, checkRequestHeaders: true } // For Raw Request cookies
+        ];
 
-        // Display cookies from raw request parsing
-        if (data.request_headers && data.cookies && rawRequestCookiesDisplay && rawRequestCookiesData) { // data.cookies is from parsed request
-            rawRequestCookiesData.textContent = JSON.stringify(data.cookies, null, 2);
-            rawRequestCookiesDisplay.style.display = 'block';
-        } else if (rawRequestCookiesDisplay) {
-            rawRequestCookiesDisplay.style.display = 'none';
-        }
+        sections.forEach(sec => {
+            let shouldDisplay = false;
+            if (data[sec.dataKey]) {
+                if (sec.checkNoRequestHeaders && !data.request_headers) shouldDisplay = true;
+                else if (sec.checkRequestHeaders && data.request_headers) shouldDisplay = true;
+                else if (!sec.checkNoRequestHeaders && !sec.checkRequestHeaders) shouldDisplay = true;
+            }
 
-        // Display cookies from URL analysis (session cookies)
-        if (!data.request_headers && data.cookies && analysisCookiesDisplay && analysisCookiesData) { // data.cookies is from URL analysis session
-            analysisCookiesData.textContent = JSON.stringify(data.cookies, null, 2);
-            analysisCookiesDisplay.style.display = 'block';
-        } else if (analysisCookiesDisplay) {
-            analysisCookiesDisplay.style.display = 'none';
-        }
+            if (shouldDisplay) {
+                if (sec.preTag) sec.preTag.textContent = JSON.stringify(data[sec.dataKey], null, 2);
+                if (sec.displayDiv) sec.displayDiv.style.display = 'block';
+            } else {
+                if (sec.displayDiv) sec.displayDiv.style.display = 'none';
+            }
+        });
 
-        // Make Step 2 visible if it was hidden
         const reviewSection = document.getElementById('review-parameters-section');
-        if(reviewSection) reviewSection.style.display = 'block'; // Or add a class to show it
+        if(reviewSection) reviewSection.style.display = 'block';
     }
 
-    async function handleUrlAnalysis(event) {
+
+    async function handleUrlAnalysisOnNewScanPage(event) { // For "New Scan" page's own analyze form
         event.preventDefault();
         const url = targetLoginUrlInput.value;
         if (!url) {
             alert('Please enter a URL.');
             return;
         }
-
-        // Add a loading indicator here if desired
+        // Add a loading indicator here if desired (specific to New Scan page)
         try {
             const response = await fetch('/analyze_url', {
                 method: 'POST',
@@ -171,21 +172,21 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!response.ok) {
                 throw new Error(data.error || `HTTP error! status: ${response.status}`);
             }
-            displayAnalysisResults(data);
+            populateNewScanStep2(data);
         } catch (error) {
-            console.error('Error analyzing URL:', error);
+            console.error('Error analyzing URL on New Scan page:', error);
             alert(`Error analyzing URL: ${error.message}`);
         }
     }
 
-    async function handleRawRequestParse(event) {
+    async function handleRawRequestParseOnNewScanPage(event) { // For "New Scan" page's own raw request form
         event.preventDefault();
         const rawRequest = rawHttpRequestInput.value;
         if (!rawRequest) {
             alert('Please paste a raw HTTP request.');
             return;
         }
-        // Add a loading indicator here if desired
+        // Add a loading indicator here if desired (specific to New Scan page)
         try {
             const response = await fetch('/parse_captured_request', {
                 method: 'POST',
@@ -196,17 +197,97 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!response.ok) {
                 throw new Error(data.error || `HTTP error! status: ${response.status}`);
             }
-            displayAnalysisResults(data); // Same function to populate Step 2
+            populateNewScanStep2(data);
         } catch (error) {
-            console.error('Error parsing raw request:', error);
+            console.error('Error parsing raw request on New Scan page:', error);
             alert(`Error parsing raw request: ${error.message}`);
         }
     }
 
-    if (analyzeUrlForm) analyzeUrlForm.addEventListener('submit', handleUrlAnalysis);
-    if (parseRequestForm) parseRequestForm.addEventListener('submit', handleRawRequestParse);
+    if (analyzeUrlForm) analyzeUrlForm.addEventListener('submit', handleUrlAnalysisOnNewScanPage);
+    if (parseRequestForm) parseRequestForm.addEventListener('submit', handleRawRequestParseOnNewScanPage);
 
-    // --- Step 3: Credentials ---
+
+    // --- QUICK SCAN CARD LOGIC (on Dashboard) ---
+    const quickScanForm = document.querySelector('.quick-scan-form');
+    const quickScanUrlInput = document.getElementById('target-url');
+    const quickScanLoadingDiv = document.getElementById('quick-scan-loading');
+    const quickScanErrorDiv = document.getElementById('quick-scan-error');
+    const quickScanResultsDiv = document.getElementById('quick-scan-results');
+    const quickScanResultsData = document.getElementById('quick-scan-results-data');
+    const proceedToFullScanBtn = document.getElementById('proceed-to-full-scan-btn');
+
+    function displayQuickScanResultsInline(data) {
+        quickScanAnalysisData = data;
+
+        if (quickScanLoadingDiv) quickScanLoadingDiv.style.display = 'none';
+        if (quickScanErrorDiv) quickScanErrorDiv.style.display = 'none';
+
+        if (quickScanResultsData) quickScanResultsData.textContent = JSON.stringify(data, null, 2);
+        if (quickScanResultsDiv) quickScanResultsDiv.style.display = 'block';
+    }
+
+    function displayQuickScanErrorInline(errorMessage) {
+        if (quickScanLoadingDiv) quickScanLoadingDiv.style.display = 'none';
+        if (quickScanResultsDiv) quickScanResultsDiv.style.display = 'none';
+
+        if (quickScanErrorDiv) {
+            quickScanErrorDiv.textContent = errorMessage;
+            quickScanErrorDiv.style.display = 'block';
+        }
+    }
+
+    async function processQuickScan(event) {
+        event.preventDefault();
+        const url = quickScanUrlInput.value;
+        if (!url) {
+            displayQuickScanErrorInline('Please enter a URL for Quick Scan.');
+            return;
+        }
+
+        if (quickScanLoadingDiv) quickScanLoadingDiv.style.display = 'block';
+        if (quickScanErrorDiv) quickScanErrorDiv.style.display = 'none';
+        if (quickScanResultsDiv) quickScanResultsDiv.style.display = 'none';
+        quickScanAnalysisData = null;
+
+        try {
+            const response = await fetch('/analyze_url', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url: url })
+            });
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.error || `HTTP error! status: ${response.status}`);
+            }
+            displayQuickScanResultsInline(data);
+        } catch (error) {
+            console.error('Error during Quick Scan:', error);
+            displayQuickScanErrorInline(`Quick Scan Error: ${error.message}`);
+        }
+    }
+
+    if (quickScanForm) {
+        quickScanForm.addEventListener('submit', processQuickScan);
+    }
+
+    if (proceedToFullScanBtn) {
+        proceedToFullScanBtn.addEventListener('click', () => {
+            if (quickScanAnalysisData) {
+                setActiveView(newScanContent);
+                populateNewScanStep2(quickScanAnalysisData); // Populate Step 2 on "New Scan" page
+
+                if (quickScanResultsDiv) quickScanResultsDiv.style.display = 'none';
+                if (quickScanErrorDiv) quickScanErrorDiv.style.display = 'none';
+                if (quickScanUrlInput) quickScanUrlInput.value = '';
+                quickScanAnalysisData = null;
+            } else {
+                alert("No analysis data to proceed with. Please perform a quick scan first.");
+            }
+        });
+    }
+
+    // --- Step 3: Credentials (on New Scan Page) ---
     const comboFileInput = document.getElementById('combo-file-input');
     const comboFileNameDisplay = document.getElementById('combo-file-name');
     const usernameListInput = document.getElementById('username-list-input');

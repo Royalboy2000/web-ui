@@ -127,8 +127,19 @@
                                 <input type="url" id="target-url" placeholder=" " required>
                                 <label for="target-url">Target URL</label>
                             </div>
-                            <button type="submit" class="button button-primary full-width">Scan Now</button>
+                            <button type="submit" class="button button-primary full-width" id="quick-scan-now-btn">Scan Now</button>
                         </form>
+                        <div id="quick-scan-loading" style="display: none; text-align: center; margin-top: 10px;">
+                            <p>Analyzing...</p> <!-- Basic spinner, can be enhanced with CSS -->
+                        </div>
+                        <div id="quick-scan-error" style="display: none; color: var(--color-error); margin-top: 10px;">
+                            {error message here}
+                        </div>
+                        <div id="quick-scan-results" style="display: none; margin-top: 15px;">
+                            <h4>Analysis Results:</h4>
+                            <pre id="quick-scan-results-data" style="max-height: 200px; overflow-y: auto;"></pre>
+                            <button id="proceed-to-full-scan-btn" class="button button-secondary full-width" style="margin-top: 10px;">Proceed to Full Scan Setup</button>
+                        </div>
                     </div>
 
                     <div class="card table-card">

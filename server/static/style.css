@@ -780,3 +780,69 @@ thead th {
 html[data-theme='light'] #new-scan-content .form-group input[type="file"] {
      color: var(--color-text-primary);
 }
+
+/* Styles for Quick Scan Card dynamic elements on Dashboard */
+#quick-scan-loading p {
+    color: var(--color-text-secondary);
+    font-style: italic;
+}
+
+#quick-scan-error {
+    color: var(--color-error);
+    font-weight: bold;
+    padding: var(--spacing-2);
+    border: 1px dashed var(--color-error);
+    border-radius: var(--border-radius-sm);
+    background-color: rgba(var(--color-error-rgb), 0.1); /* Assuming --color-error-rgb is defined or use a fixed one */
+}
+/* Define --color-error-rgb if not already globally defined */
+:root {
+    --color-error-rgb: 239, 68, 68; /* From --color-error: #ef4444; */
+}
+
+
+#quick-scan-results h4 {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--color-text-primary);
+    margin-bottom: var(--spacing-2);
+}
+
+#quick-scan-results-data { /* The <pre> tag */
+    background-color: var(--color-secondary);
+    padding: var(--spacing-3);
+    border-radius: var(--border-radius-sm);
+    border: 1px solid var(--color-border);
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
+    font-size: 0.85rem;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    max-height: 200px; /* Or as desired */
+    overflow-y: auto;
+    color: var(--color-text-secondary); /* Text color for the pre content */
+}
+
+html[data-theme='light'] #quick-scan-results-data {
+    color: var(--color-text-primary); /* Ensure readability on light theme */
+}
+
+
+#proceed-to-full-scan-btn {
+    margin-top: var(--spacing-4);
+    background-color: var(--color-primary); /* Or use button-secondary if preferred */
+    color: white;
+}
+#proceed-to-full-scan-btn:hover {
+    opacity: 0.9;
+}
+html[data-theme='light'] #proceed-to-full-scan-btn {
+     background-color: var(--color-primary);
+     color: white;
+}
+/* If using button-secondary for proceed: */
+/*
+#proceed-to-full-scan-btn {
+    margin-top: var(--spacing-4);
+    Consider if button-secondary class is already sufficient
+}
+*/
