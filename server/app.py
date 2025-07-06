@@ -487,31 +487,36 @@ def test_credentials():
                 "settings", "profile", "control panel", "logged in as", "sign off"
             ]
 
-            with requests.Session() as session:
-                if initial_cookies:
-                    session.cookies.update(initial_cookies)
+            # Headers are mostly constant for all attempts in this run
+            base_headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                'Origin': urlparse(target_post_url).scheme + '://' + urlparse(target_post_url).netloc if target_post_url.startswith('http') else None,
+                'Referer': target_post_url
+            }
+            if base_headers['Origin'] is None:
+                del base_headers['Origin'] # Remove if not applicable
 
-                headers = {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-                    'Origin': urlparse(target_post_url).scheme + '://' + urlparse(target_post_url).netloc if target_post_url.startswith('http') else None,
-                    'Referer': target_post_url
-                }
-                if headers['Origin'] is None:
-                    if 'Origin' in headers: del headers['Origin']
+            app.logger.info(f"SSE stream: Starting paired credential testing. Number of pairs to test: {num_pairs_to_test}")
+            if num_pairs_to_test == 0:
+                yield f"data: {json.dumps({'status': 'complete', 'message': 'No username/password pairs to test.'})}\n\n"
+                app.logger.info("SSE stream: No pairs to test, sending completion event early.")
+                return
 
-                app.logger.info(f"SSE stream: Starting paired credential testing. Number of pairs to test: {num_pairs_to_test}")
-                if num_pairs_to_test == 0:
-                    yield f"data: {json.dumps({'status': 'complete', 'message': 'No username/password pairs to test.'})}\n\n"
-                    app.logger.info("SSE stream: No pairs to test, sending completion event early.")
-                    return
+            for i in range(num_pairs_to_test):
+                # Create a new session for each attempt to ensure isolation
+                with requests.Session() as session:
+                    if initial_cookies:
+                        session.cookies.update(initial_cookies)
 
-                for i in range(num_pairs_to_test):
+                    # Use a copy of base_headers for this specific attempt if needed, though usually not modified per attempt
+                    current_headers = base_headers.copy()
+
                     username_attempt = source_usernames[i]
                     password_attempt = source_passwords[i]
 
                     app.logger.info(f"SSE stream: Attempting pair {i+1}/{num_pairs_to_test}: User '{username_attempt}' with Password '********'")
 
-                    current_payload_for_request = { # Corrected variable name
+                    current_payload_for_request = {
                         username_field_name: username_attempt,
                         password_field_name: password_attempt,
                     }
@@ -520,23 +525,23 @@ def test_credentials():
 
                     attempt_result = {
                         "username": username_attempt,
-                        "password_actual": password_attempt,
+                        "password_actual": password_attempt, # For client-side reference if needed
                         "status": "unknown",
                         "response_url": None,
                         "status_code": None,
                         "content_length": None,
-                        "request_details": current_payload_for_request.copy(),
-                        "response_body": None,
-                        "details": ""
+                        "request_details": current_payload_for_request.copy(), # Log what was sent
+                        "response_body": None, # Store response for modal
+                        "details": "" # Summary of analysis
                     }
 
                     try:
-                        pre_request_cookies = session.cookies.copy()
+                        # pre_request_cookies = session.cookies.copy() # No longer needed to copy from outer session
 
                         if form_method == 'POST':
-                            response = session.post(target_post_url, data=current_payload_for_request, headers=headers, timeout=10, allow_redirects=True)
+                            response = session.post(target_post_url, data=current_payload_for_request, headers=current_headers, timeout=10, allow_redirects=True)
                         elif form_method == 'GET':
-                            response = session.get(target_post_url, params=current_payload_for_request, headers=headers, timeout=10, allow_redirects=True)
+                            response = session.get(target_post_url, params=current_payload_for_request, headers=current_headers, timeout=10, allow_redirects=True)
                         else:
                             attempt_result["status"] = "error"
                             attempt_result["details"] = f"Unsupported form method: {form_method}"
