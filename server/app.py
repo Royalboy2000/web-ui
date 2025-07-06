@@ -536,8 +536,11 @@ def test_credentials():
                     }
 
                     try:
-                        # pre_request_cookies = session.cookies.copy() # No longer needed to copy from outer session
+                        # The 'session' object is new for this attempt.
+                        # 'initial_cookies' were applied to it if they existed.
+                        # So, the state of session.cookies BEFORE the request is effectively 'initial_cookies'.
 
+                        # Make the request
                         if form_method == 'POST':
                             response = session.post(target_post_url, data=current_payload_for_request, headers=current_headers, timeout=10, allow_redirects=True)
                         elif form_method == 'GET':
@@ -547,6 +550,9 @@ def test_credentials():
                             attempt_result["details"] = f"Unsupported form method: {form_method}"
                             yield f"data: {json.dumps(attempt_result)}\n\n"
                             continue
+
+                        # After the request, session.cookies contains post-request cookies.
+                        # initial_cookies (passed to event_stream) is the pre-request state for this attempt's session.
 
                         attempt_result["status_code"] = response.status_code
                         attempt_result["response_url"] = response.url
@@ -578,11 +584,6 @@ def test_credentials():
                         negative_indicators = []
                         soup = BeautifulSoup(response.text, 'html.parser')
                         response_text_lower = response.text.lower()
-
-                        # Store original response length for comparison (e.g. D2)
-                        # This would be more effective if we had a baseline length of the login page itself.
-                        # For now, we'll just use the current response length if needed by a check,
-                        # or this could be a placeholder for a more advanced check.
                         original_response_length = len(response.text)
 
 
@@ -690,34 +691,28 @@ def test_credentials():
                         is_redirected = len(response.history) > 0
                         is_redirected_significantly = False
                         if is_redirected:
-                            # Check if netloc changed or if path changed substantially (e.g., /login to /dashboard)
                             if parsed_target_post_url.netloc != parsed_response_url.netloc:
                                 is_redirected_significantly = True
                             else:
-                                # Compare first significant path segment if available
                                 target_path_segment = (parsed_target_post_url.path.split('/')[1] if parsed_target_post_url.path.count('/') > 1 else parsed_target_post_url.path).lower()
                                 response_path_segment = (parsed_response_url.path.split('/')[1] if parsed_response_url.path.count('/') > 1 else parsed_response_url.path).lower()
                                 common_login_paths = ['login', 'signin', 'auth', 'account', 'authenticate']
-                                # Redirect from a common login path to something else
                                 if any(lp in target_path_segment for lp in common_login_paths) and not any(lp in response_path_segment for lp in common_login_paths):
                                     is_redirected_significantly = True
-                                # Or if paths are just very different and not just a query param change
                                 elif target_path_segment != response_path_segment and parsed_target_post_url.path != parsed_response_url.path :
                                     is_redirected_significantly = True
-
 
                         if is_redirected_significantly:
                             login_score += 40
                             positive_indicators.append(f"Significant URL redirection from '{parsed_target_post_url.path}' to '{parsed_response_url.path}'")
-                        elif is_redirected: # Minor redirect (e.g. /login to /login?error=1)
-                            login_score += 5 # Small bonus for any redirect, but could be to an error page
+                        elif is_redirected:
+                            login_score += 5
                             positive_indicators.append(f"Minor URL redirection to '{parsed_response_url.path}'")
 
-
                         # C2: Check for Changed Cookies
-                        # Convert both pre and post request cookie jars to simple dictionaries for comparison.
-                        # This avoids CookieConflictError that can occur with direct jar item access.
-                        pre_request_cookies_dict = pre_request_cookies.get_dict()
+                        # 'initial_cookies' is the state before this attempt's request within this fresh session.
+                        # 'session.cookies.get_dict()' is the state after.
+                        pre_request_cookies_dict = initial_cookies.copy() if initial_cookies else {}
                         post_request_cookies_dict = session.cookies.get_dict()
                         cookies_changed = False
 
