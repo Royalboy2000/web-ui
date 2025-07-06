@@ -560,18 +560,22 @@ def test_credentials():
                         response_text_content = ""
                         try:
                             response_text_content = response.text
+                            # content_length should be from the actual response, not potentially truncated version
                             attempt_result["content_length"] = len(response_text_content)
-                            attempt_result["response_body"] = response_text_content
 
-                            MAX_RESPONSE_BODY_LOG_WARN_SIZE = 1 * 1024 * 1024 # 1MB
-                            if len(response_text_content) > MAX_RESPONSE_BODY_LOG_WARN_SIZE:
+                            MAX_SSE_RESPONSE_BODY_LEN = 15000 # Max characters for response_body in SSE
+                            if len(response_text_content) > MAX_SSE_RESPONSE_BODY_LEN:
+                                attempt_result["response_body"] = response_text_content[:MAX_SSE_RESPONSE_BODY_LEN] + "... (truncated for SSE)"
                                 app.logger.warning(
-                                    f"Response body for {username_attempt} with password '********' is very large: "
-                                    f"{len(response_text_content)} bytes. Consider implications for streaming and frontend memory."
+                                    f"Response body for {username_attempt} was truncated for SSE. Original length: {len(response_text_content)}, Sent: {MAX_SSE_RESPONSE_BODY_LEN}"
                                 )
+                            else:
+                                attempt_result["response_body"] = response_text_content
+
                         except Exception as e_text_body:
                             app.logger.warning(f"Could not get response.text for response_body for user {username_attempt}: {e_text_body}")
                             attempt_result["response_body"] = f"Error retrieving response body: {str(e_text_body)}"
+                            attempt_result["content_length"] = -1 # Indicate error or unknown length
                             header_cl = response.headers.get('Content-Length')
                             if header_cl and header_cl.isdigit():
                                 attempt_result["content_length"] = int(header_cl)
