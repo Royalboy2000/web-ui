@@ -167,7 +167,8 @@ def analyze_url():
             "password_field_name": password_field_name,
             "csrf_token_name": csrf_token_name,
             "csrf_token_value": csrf_token_value,
-            "cookies": session.cookies.get_dict()
+            "cookies": session.cookies.get_dict(),
+            "login_form_render_url": target_url # Store the URL that rendered the form
         }
         app.logger.info(f"Analysis result for {target_url}: {analysis_result}")
         return jsonify(analysis_result), 200
@@ -516,12 +517,58 @@ def test_credentials():
 
                     app.logger.info(f"SSE stream: Attempting pair {i+1}/{num_pairs_to_test}: User '{username_attempt}' with Password '********'")
 
+                    # --- BEGIN: Fetch fresh CSRF token for this attempt ---
+                    fresh_csrf_token_name = None
+                    fresh_csrf_token_value = None
+                    login_page_url_for_csrf = target_post_url # Assume target_post_url is the login page
+
+                    try {
+                        app.logger.info(f"Fetching login page ({login_page_url_for_csrf}) for fresh CSRF token for user {username_attempt}")
+                        login_page_resp = session.get(login_page_url_for_csrf, headers=current_headers, timeout=10, allow_redirects=True)
+                        login_page_resp.raise_for_status()
+                        login_soup = BeautifulSoup(login_page_resp.text, 'html.parser')
+
+                        # Try to find CSRF in forms (similar to analyze_url)
+                        # Simplified: look for any form and then hidden inputs within it.
+                        # A more robust approach would re-use the more detailed form finding from analyze_url if needed.
+                        forms_on_page = login_soup.find_all('form')
+                        for form_in_login_page in forms_on_page:
+                            hidden_inputs = form_in_login_page.find_all('input', {'type': 'hidden'})
+                            for hidden_in in hidden_inputs:
+                                input_name = hidden_in.get('name')
+                                if input_name:
+                                    for common_csrf_name_candidate in common_field_names.COMMON_CSRF_TOKEN_FIELDS:
+                                        if common_csrf_name_candidate.lower() == input_name.lower():
+                                            fresh_csrf_token_name = input_name
+                                            fresh_csrf_token_value = hidden_in.get('value')
+                                            app.logger.info(f"Found fresh CSRF for attempt: name='{fresh_csrf_token_name}', value='{fresh_csrf_token_value}'")
+                                            break
+                                if fresh_csrf_token_name:
+                                    break
+                            if fresh_csrf_token_name:
+                                break
+                        if not fresh_csrf_token_name:
+                             app.logger.warning(f"Could not find a fresh CSRF token on {login_page_url_for_csrf} for user {username_attempt}. Will use initial if available.")
+                    } catch (Exception e_csrf) {
+                        app.logger.warning(f"Error fetching/parsing login page for fresh CSRF for user {username_attempt}: {str(e_csrf)}")
+                    }
+                    # --- END: Fetch fresh CSRF token ---
+
                     current_payload_for_request = {
                         username_field_name: username_attempt,
                         password_field_name: password_attempt,
                     }
-                    if csrf_token_name and csrf_token_value:
+
+                    # Use fresh CSRF token if found, otherwise fallback to initially analyzed one
+                    if fresh_csrf_token_name and fresh_csrf_token_value:
+                        current_payload_for_request[fresh_csrf_token_name] = fresh_csrf_token_value
+                        app.logger.info(f"Using fresh CSRF for attempt: {fresh_csrf_token_name}")
+                    elif csrf_token_name and csrf_token_value: # Fallback to original
                         current_payload_for_request[csrf_token_name] = csrf_token_value
+                        app.logger.info(f"Using initial CSRF for attempt (fresh not found): {csrf_token_name}")
+                    else:
+                        app.logger.info("No CSRF token used for this attempt (none found initially or freshly).")
+
 
                     attempt_result = {
                         "username": username_attempt,
