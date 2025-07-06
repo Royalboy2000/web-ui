@@ -586,10 +586,40 @@ def test_credentials():
                         response_text_lower = response.text.lower()
                         original_response_length = len(response.text)
 
+                        # --- MOVED UP: C1: Check for Significant URL Redirection ---
+                        parsed_target_post_url = urlparse(target_post_url)
+                        parsed_response_url = urlparse(response.url) # Defined early
+                        is_redirected = len(response.history) > 0
+                        is_redirected_significantly = False
+                        if is_redirected:
+                            if parsed_target_post_url.netloc != parsed_response_url.netloc:
+                                is_redirected_significantly = True
+                            else:
+                                target_path_segment = (parsed_target_post_url.path.split('/')[1] if parsed_target_post_url.path.count('/') > 1 else parsed_target_post_url.path).lower()
+                                response_path_segment = (parsed_response_url.path.split('/')[1] if parsed_response_url.path.count('/') > 1 else parsed_response_url.path).lower()
+                                common_login_paths = ['login', 'signin', 'auth', 'account', 'authenticate']
+                                if any(lp in target_path_segment for lp in common_login_paths) and not any(lp in response_path_segment for lp in common_login_paths):
+                                    is_redirected_significantly = True
+                                elif target_path_segment != response_path_segment and parsed_target_post_url.path != parsed_response_url.path :
+                                    is_redirected_significantly = True
+
+                        # Define is_on_known_success_page *after* redirect variables are set
+                        is_on_known_success_page = (is_redirected_significantly and parsed_response_url.path.endswith('/frontend/rest/v1/welcome'))
+
+                        # Apply scoring for redirects (still part of C1 conceptually)
+                        if is_on_known_success_page:
+                            login_score += 70
+                            positive_indicators.append(f"Redirected to known success URL: '{parsed_response_url.path}'")
+                        elif is_redirected_significantly:
+                            login_score += 40
+                            positive_indicators.append(f"Significant URL redirection from '{parsed_target_post_url.path}' to '{parsed_response_url.path}'")
+                        elif is_redirected:
+                            login_score += 5
+                            positive_indicators.append(f"Minor URL redirection to '{parsed_response_url.path}'")
+                        # --- END OF MOVED C1 and its scoring ---
 
                         # Category A: Definitive Failure Indicators
                         # A1: Check for Explicit Error Messages
-                        # More comprehensive list of error messages
                         detailed_error_messages = common_error_messages + [
                             "invalid login attempt", "please try again", "check your credentials",
                             "account disabled", "contact support", "kullanıcı bulunamadı",
@@ -607,15 +637,12 @@ def test_credentials():
                             negative_indicators.append(f"Found explicit error text: '{found_error_message_text}'")
 
                         # A2: Check for Login Form Persistence (Password Field)
-                        # Check if the password input field (by name) is still present.
-                        # This uses the password_field_name identified in the earlier analysis step.
                         if password_field_name and soup.find('input', {'name': password_field_name}):
                             login_score -= 75
                             negative_indicators.append(f"Login form (password field '{password_field_name}') is still present")
-                        elif soup.find('input', {'type': 'password'}): # More generic check if name specific fails
-                            login_score -= 60 # Slightly less confidence than specific name
+                        elif soup.find('input', {'type': 'password'}):
+                            login_score -= 60
                             negative_indicators.append("Login form (generic password field) is still present")
-
 
                         # A3: Check for CAPTCHA
                         captcha_keywords = ["captcha", "i'm not a robot", "g-recaptcha", "recaptcha", "security check", "are you human"]
@@ -627,54 +654,43 @@ def test_credentials():
                         found_captcha_keyword = any(kw in response_text_lower for kw in captcha_keywords)
                         found_captcha_element = any(soup.find(attrs=selector) for selector in captcha_elements_selectors)
 
-                        is_on_known_success_page = (is_redirected_significantly and parsed_response_url.path.endswith('/frontend/rest/v1/welcome'))
-
+                        # is_on_known_success_page is already defined
                         if found_captcha_keyword or found_captcha_element:
-                            if is_on_known_success_page:
-                                login_score -= 10 # Significantly reduced penalty if we landed on welcome page anyway
+                            if is_on_known_success_page: # If we are on success page, CAPTCHA (from prev page) is less of a failure indicator
+                                login_score -= 10
                                 negative_indicators.append("CAPTCHA elements/keywords detected (possibly on intermediate page, but landed on welcome)")
-                            else:
-                                login_score -= 100 # Full penalty if not on welcome page
+                            else: # If not on success page and CAPTCHA found, it's a strong failure signal
+                                login_score -= 100
                                 negative_indicators.append("CAPTCHA challenge detected on page")
 
                         # A4: Check for Critical HTTP Error Codes
                         if response.status_code in [401, 403, 429]:
                             login_score -= 100
                             negative_indicators.append(f"Received critical HTTP error code: {response.status_code}")
-                        elif response.status_code >= 400 and response.status_code < 500: # Other 4xx errors
+                        elif response.status_code >= 400 and response.status_code < 500:
                             login_score -= 40
                             negative_indicators.append(f"Received client-side HTTP error code: {response.status_code}")
 
-
                         # Category B: Definitive Success Indicators
                         # B1: Check for Definitive Post-Login Elements
-                        # More comprehensive list of selectors for logout links/buttons or common post-login elements
                         post_login_selectors = [
                             {'href': lambda href: href and ('logout' in href.lower() or 'signout' in href.lower() or 'logoff' in href.lower())},
                             {'id': lambda x: x and ('dashboard' in x.lower() or 'user-profile' in x.lower() or 'account-settings' in x.lower())},
                             {'class': lambda x: x and any(c in x.lower() for c in ['user-menu', 'profile-dropdown', 'site-header-actions--logged-in'])},
                             {'aria-label': lambda x: x and ('logout' in x.lower() or 'profile' in x.lower())},
-                            # Common text content for logout (less reliable but can be a fallback)
-                            # lambda tag: tag.name == 'a' and ('logout' in tag.get_text(strip=True).lower() or 'sign out' in tag.get_text(strip=True).lower())
                         ]
                         found_post_login_element_detail = None
                         for selector_type in post_login_selectors:
-                            if isinstance(selector_type, dict): # Attribute based selectors
+                            if isinstance(selector_type, dict):
                                 found_element = soup.find(attrs=selector_type)
                                 if found_element:
                                     found_post_login_element_detail = f"Found element matching {selector_type}"
                                     break
-                            # elif callable(selector_type): # Function based selector (e.g. for text content)
-                            #     found_element = soup.find(selector_type)
-                            #     if found_element:
-                            #         found_post_login_element_detail = f"Found element via custom function: {selector_type.__name__}"
-                            #         break
                         if found_post_login_element_detail:
                             login_score += 80
                             positive_indicators.append(f"Found definitive post-login element ({found_post_login_element_detail})")
 
                         # B2: Check for User-Specific Information (Expected Username)
-                        # Ensure username_attempt is not empty and appears in the text, but not in an input field's value.
                         if username_attempt and username_attempt.lower() in response_text_lower:
                             is_in_input_value = False
                             for input_tag in soup.find_all('input'):
@@ -685,45 +701,11 @@ def test_credentials():
                                 login_score += 70
                                 positive_indicators.append(f"Expected username '{username_attempt}' found in page body (not as input value)")
                             else:
-                                # Username found, but it's in an input field, could be prefill on failed login
-                                login_score -= 10 # Slight negative if it's just prefilled username
+                                login_score -= 10
                                 negative_indicators.append(f"Expected username '{username_attempt}' found, but only in an input field value (potential prefill on failure)")
 
-
-                        # Category C: Strong Corroborating Indicators
-                        # C1: Check for Significant URL Redirection
-                        parsed_target_post_url = urlparse(target_post_url)
-                        parsed_response_url = urlparse(response.url)
-                        is_redirected = len(response.history) > 0
-                        is_redirected_significantly = False
-                        if is_redirected:
-                            if parsed_target_post_url.netloc != parsed_response_url.netloc:
-                                is_redirected_significantly = True
-                            else:
-                                target_path_segment = (parsed_target_post_url.path.split('/')[1] if parsed_target_post_url.path.count('/') > 1 else parsed_target_post_url.path).lower()
-                                response_path_segment = (parsed_response_url.path.split('/')[1] if parsed_response_url.path.count('/') > 1 else parsed_response_url.path).lower()
-                                common_login_paths = ['login', 'signin', 'auth', 'account', 'authenticate']
-                                if any(lp in target_path_segment for lp in common_login_paths) and not any(lp in response_path_segment for lp in common_login_paths):
-                                    is_redirected_significantly = True
-                                elif target_path_segment != response_path_segment and parsed_target_post_url.path != parsed_response_url.path :
-                                    is_redirected_significantly = True
-
-                        # is_on_known_success_page is already defined from the CAPTCHA logic refinement:
-                        # is_on_known_success_page = (is_redirected_significantly and parsed_response_url.path.endswith('/frontend/rest/v1/welcome'))
-
-                        if is_on_known_success_page:
-                            login_score += 70 # Higher score for redirect to specific known success page
-                            positive_indicators.append(f"Redirected to known success URL: '{parsed_response_url.path}'")
-                        elif is_redirected_significantly:
-                            login_score += 40
-                            positive_indicators.append(f"Significant URL redirection from '{parsed_target_post_url.path}' to '{parsed_response_url.path}'")
-                        elif is_redirected:
-                            login_score += 5
-                            positive_indicators.append(f"Minor URL redirection to '{parsed_response_url.path}'")
-
+                        # Category C: Strong Corroborating Indicators (C1 was moved up)
                         # C2: Check for Changed Cookies
-                        # 'initial_cookies' is the state before this attempt's request within this fresh session.
-                        # 'session.cookies.get_dict()' is the state after.
                         pre_request_cookies_dict = initial_cookies.copy() if initial_cookies else {}
                         post_request_cookies_dict = session.cookies.get_dict()
                         cookies_changed = False
