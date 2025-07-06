@@ -627,9 +627,15 @@ def test_credentials():
                         found_captcha_keyword = any(kw in response_text_lower for kw in captcha_keywords)
                         found_captcha_element = any(soup.find(attrs=selector) for selector in captcha_elements_selectors)
 
+                        is_on_known_success_page = (is_redirected_significantly and parsed_response_url.path.endswith('/frontend/rest/v1/welcome'))
+
                         if found_captcha_keyword or found_captcha_element:
-                            login_score -= 100
-                            negative_indicators.append("CAPTCHA challenge detected on page")
+                            if is_on_known_success_page:
+                                login_score -= 10 # Significantly reduced penalty if we landed on welcome page anyway
+                                negative_indicators.append("CAPTCHA elements/keywords detected (possibly on intermediate page, but landed on welcome)")
+                            else:
+                                login_score -= 100 # Full penalty if not on welcome page
+                                negative_indicators.append("CAPTCHA challenge detected on page")
 
                         # A4: Check for Critical HTTP Error Codes
                         if response.status_code in [401, 403, 429]:
@@ -702,7 +708,13 @@ def test_credentials():
                                 elif target_path_segment != response_path_segment and parsed_target_post_url.path != parsed_response_url.path :
                                     is_redirected_significantly = True
 
-                        if is_redirected_significantly:
+                        # is_on_known_success_page is already defined from the CAPTCHA logic refinement:
+                        # is_on_known_success_page = (is_redirected_significantly and parsed_response_url.path.endswith('/frontend/rest/v1/welcome'))
+
+                        if is_on_known_success_page:
+                            login_score += 70 # Higher score for redirect to specific known success page
+                            positive_indicators.append(f"Redirected to known success URL: '{parsed_response_url.path}'")
+                        elif is_redirected_significantly:
                             login_score += 40
                             positive_indicators.append(f"Significant URL redirection from '{parsed_target_post_url.path}' to '{parsed_response_url.path}'")
                         elif is_redirected:
