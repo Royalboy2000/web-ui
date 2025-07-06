@@ -586,9 +586,10 @@ def test_credentials():
                         response_text_lower = response.text.lower()
                         original_response_length = len(response.text)
 
-                        # --- MOVED UP: C1: Check for Significant URL Redirection ---
+                        # --- CORRECTED ORDER ---
+                        # 1. Perform URL parsing and redirect analysis first.
                         parsed_target_post_url = urlparse(target_post_url)
-                        parsed_response_url = urlparse(response.url) # Defined early
+                        parsed_response_url = urlparse(response.url)
                         is_redirected = len(response.history) > 0
                         is_redirected_significantly = False
                         if is_redirected:
@@ -603,10 +604,10 @@ def test_credentials():
                                 elif target_path_segment != response_path_segment and parsed_target_post_url.path != parsed_response_url.path :
                                     is_redirected_significantly = True
 
-                        # Define is_on_known_success_page *after* redirect variables are set
+                        # 2. Define is_on_known_success_page using the now-defined redirect variables.
                         is_on_known_success_page = (is_redirected_significantly and parsed_response_url.path.endswith('/frontend/rest/v1/welcome'))
 
-                        # Apply scoring for redirects (still part of C1 conceptually)
+                        # 3. Apply scoring for redirects (C1 Scoring part)
                         if is_on_known_success_page:
                             login_score += 70
                             positive_indicators.append(f"Redirected to known success URL: '{parsed_response_url.path}'")
@@ -616,8 +617,9 @@ def test_credentials():
                         elif is_redirected:
                             login_score += 5
                             positive_indicators.append(f"Minor URL redirection to '{parsed_response_url.path}'")
-                        # --- END OF MOVED C1 and its scoring ---
+                        # --- END OF REDIRECT ANALYSIS AND SCORING ---
 
+                        # Now proceed with other checks (A, B, remaining C, D categories)
                         # Category A: Definitive Failure Indicators
                         # A1: Check for Explicit Error Messages
                         detailed_error_messages = common_error_messages + [
