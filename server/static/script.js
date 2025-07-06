@@ -496,7 +496,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const row = liveFeedTbody.insertRow();
         row.dataset.status = data.status ? data.status.toLowerCase() : 'unknown';
-        row.dataset.logIndex = logEntries.length - 1;
+        const currentIndex = logEntries.length - 1; // Capture current index for this specific entry
+        row.dataset.logIndex = currentIndex;
+
 
         row.insertCell().textContent = data.attemptNumber;
         row.insertCell().textContent = new Date().toLocaleTimeString();
@@ -513,7 +515,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const detailsButton = document.createElement('button');
         detailsButton.className = 'button button-secondary button-sm';
         detailsButton.textContent = 'View';
-        detailsButton.onclick = () => showLogDetails(logEntries.length - 1);
+        // CORRECTED: Use the captured currentIndex for this specific button's onclick handler
+        detailsButton.onclick = () => showLogDetails(currentIndex);
         row.insertCell().appendChild(detailsButton);
 
         applyLogFilter();
