@@ -397,7 +397,8 @@ def discover_heuristics(target_url, username_field, password_field, form_method,
     if initial_cookies:
         session.cookies.update(initial_cookies)
 
-    baseline_response = session.get(target_url, headers={'User-Agent': random.choice(config["user_agents"])}, proxies=config.get("proxy"))
+    user_agents = config.get("user_agents") or config.DEFAULT_USER_AGENTS
+    baseline_response = session.get(target_url, headers={'User-Agent': random.choice(user_agents)}, proxies=config.get("proxy"))
     baseline_status = baseline_response.status_code
     baseline_body_size = len(baseline_response.text)
     baseline_text = baseline_response.text
@@ -449,7 +450,8 @@ def execute_login_attempt(username, password, target_post_url, username_field_na
             session.cookies.update(initial_cookies)
 
         # User-Agent Rotation
-        user_agent = random.choice(final_config["user_agents"])
+        user_agents = final_config.get("user_agents") or config.DEFAULT_USER_AGENTS
+        user_agent = random.choice(user_agents)
         headers = {
             'User-Agent': user_agent,
             'Origin': urlparse(target_post_url).scheme + '://' + urlparse(target_post_url).netloc,
