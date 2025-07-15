@@ -7,6 +7,7 @@ import os
 import sys
 import re
 import random
+import difflib
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import time
 import threading
@@ -420,25 +421,23 @@ def discover_heuristics(target_url, username_field, password_field, form_method,
     failure_body = failure_response.text
 
     failure_keywords = []
-    # Simple text comparison to find new error messages
-    if failure_body != baseline_text:
-        # This is a very basic diff, a more advanced approach would be to use a library like difflib
-        # For now, we'll just look for new words in the failure body
-        baseline_words = set(baseline_text.lower().split())
-        failure_words = set(failure_body.lower().split())
-        new_words = failure_words - baseline_words
-        # Filter for common error words
-        error_keywords = ["error", "invalid", "incorrect", "failed", "wrong"]
-        for word in new_words:
-            if any(error_keyword in word for error_keyword in error_keywords):
-                failure_keywords.append(word)
+    # Use difflib to find new error messages
+    d = difflib.Differ()
+    diff = d.compare(baseline_text.splitlines(), failure_body.splitlines())
+    for line in diff:
+        if line.startswith('+ '):
+            # Filter for common error words
+            error_keywords = ["error", "invalid", "incorrect", "failed", "wrong"]
+            if any(error_keyword in line.lower() for error_keyword in error_keywords):
+                failure_keywords.append(line[2:])
 
     # Step 4: Defining Success
     generated_heuristics = {
         "success_status_codes": [302],
         "success_headers": {"Set-Cookie": "sessionid"},
-        "failure_status_codes": [401, 403, 429] if failure_status in [401, 403, 429] else [],
-        "failure_body_keywords": failure_keywords
+        "failure_status_codes": [failure_status] if failure_status != baseline_status else [],
+        "failure_body_keywords": failure_keywords,
+        "failure_headers": {"Location": None} # Check for absence of redirect
     }
 
     return generated_heuristics
@@ -514,6 +513,12 @@ def execute_login_attempt(username, password, target_post_url, username_field_na
                             break
                 except ValueError:
                     pass # Not a JSON response
+                if "Location" in response.headers:
+                    status = "success"
+                    details = f"Redirected to {response.headers['Location']}"
+                if any(keyword in response.text.lower() for keyword in ["welcome", "dashboard", "logout"]):
+                    status = "success"
+                    details = "Found success keyword in response body."
 
             # Failure Heuristics
             if status == "unknown":
@@ -525,6 +530,9 @@ def execute_login_attempt(username, password, target_post_url, username_field_na
                         status = "failure"
                         details = f"Failure keyword found: {keyword}"
                         break
+                if heuristics.get("failure_headers", {}).get("Location") is None and "Location" not in response.headers:
+                    status = "failure"
+                    details = "No redirect on failure"
 
             return {
                 "username": username,
