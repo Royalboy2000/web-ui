@@ -586,8 +586,10 @@ def test_credentials_stream():
                 data.get('cookies', {}),
                 final_config
             )
-        else:
+        elif isinstance(heuristics_config, dict):
             final_config["heuristics"] = {**config.DEFAULT_HEURISTICS, **heuristics_config}
+        else: # manual or other string
+            final_config["heuristics"] = config.DEFAULT_HEURISTICS
 
         # --- Credential Parsing ---
         username_list_payload = data.get('username_list', [])
