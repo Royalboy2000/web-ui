@@ -640,7 +640,8 @@ def test_credentials_stream():
                 else:
                     try:
                         session = requests.Session()
-                        response = session.get(final_config["login_page_url"], headers={'User-Agent': random.choice(final_config["user_agents"])}, timeout=10)
+                        user_agents = final_config.get("user_agents") or config.DEFAULT_USER_AGENTS
+                        response = session.get(final_config["login_page_url"], headers={'User-Agent': random.choice(user_agents)}, timeout=10)
                         soup = BeautifulSoup(response.text, 'html.parser')
                         token_input = soup.find('input', {'name': final_config["csrf_token_field_name"]})
                         if token_input:
