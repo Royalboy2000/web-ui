@@ -391,14 +391,14 @@ def parse_captured_request():
         return jsonify({"error": f"An unexpected server error occurred during raw request parsing."}), 500
 
 
-def discover_heuristics(target_url, username_field, password_field, form_method, initial_cookies, config):
+def discover_heuristics(target_url, username_field, password_field, form_method, initial_cookies, final_config):
     # Step 1: Baseline Analysis
     session = requests.Session()
     if initial_cookies:
         session.cookies.update(initial_cookies)
 
-    user_agents = config.get("user_agents") or config.DEFAULT_USER_AGENTS
-    baseline_response = session.get(target_url, headers={'User-Agent': random.choice(user_agents)}, proxies=config.get("proxy"))
+    user_agents = final_config.get("user_agents") or config.DEFAULT_USER_AGENTS
+    baseline_response = session.get(target_url, headers={'User-Agent': random.choice(user_agents)}, proxies=final_config.get("proxy"))
     baseline_status = baseline_response.status_code
     baseline_body_size = len(baseline_response.text)
     baseline_text = baseline_response.text
@@ -411,9 +411,9 @@ def discover_heuristics(target_url, username_field, password_field, form_method,
     }
 
     if form_method == "POST":
-        failure_response = session.post(target_url, data=payload, headers={'User-Agent': random.choice(config["user_agents"])}, proxies=config.get("proxy"))
+        failure_response = session.post(target_url, data=payload, headers={'User-Agent': random.choice(user_agents)}, proxies=final_config.get("proxy"))
     else:
-        failure_response = session.get(target_url, params=payload, headers={'User-Agent': random.choice(config["user_agents"])}, proxies=config.get("proxy"))
+        failure_response = session.get(target_url, params=payload, headers={'User-Agent': random.choice(user_agents)}, proxies=final_config.get("proxy"))
 
     # Step 3: Differential Comparison
     failure_status = failure_response.status_code
