@@ -522,7 +522,7 @@ def test_credentials():
                     fresh_csrf_token_value = None
                     login_page_url_for_csrf = target_post_url # Assume target_post_url is the login page
 
-                    try {
+                    try:
                         app.logger.info(f"Fetching login page ({login_page_url_for_csrf}) for fresh CSRF token for user {username_attempt}")
                         login_page_resp = session.get(login_page_url_for_csrf, headers=current_headers, timeout=10, allow_redirects=True)
                         login_page_resp.raise_for_status()
@@ -549,9 +549,8 @@ def test_credentials():
                                 break
                         if not fresh_csrf_token_name:
                              app.logger.warning(f"Could not find a fresh CSRF token on {login_page_url_for_csrf} for user {username_attempt}. Will use initial if available.")
-                    } catch (Exception e_csrf) {
+                    except Exception as e_csrf:
                         app.logger.warning(f"Error fetching/parsing login page for fresh CSRF for user {username_attempt}: {str(e_csrf)}")
-                    }
                     # --- END: Fetch fresh CSRF token ---
 
                     current_payload_for_request = {
