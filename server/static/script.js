@@ -572,6 +572,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const proxyInput = document.getElementById('proxy');
         const userAgentsInput = document.getElementById('user-agents');
 
+        const heuristicsModeInput = document.getElementById('heuristics-mode');
+
         const payload = {
             target_post_url: detectedPostUrlInput.value,
             username_field_name: detectedUsernameFieldInput.value,
@@ -586,7 +588,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 proxy: proxyInput.value || null,
                 user_agents: userAgentsInput.value ? userAgentsInput.value.split('\n').map(ua => ua.trim()).filter(ua => ua) : null,
                 login_page_url: currentAnalysisResult.login_form_render_url || detectedPostUrlInput.value,
-                csrf_token_field_name: detectedCsrfNameInput.value || null
+                csrf_token_field_name: detectedCsrfNameInput.value || null,
+                heuristics: heuristicsModeInput.value
             }
         };
         if (currentAnalysisResult.form_parameters) {

@@ -391,6 +391,57 @@ def parse_captured_request():
         return jsonify({"error": f"An unexpected server error occurred during raw request parsing."}), 500
 
 
+def discover_heuristics(target_url, username_field, password_field, form_method, initial_cookies, config):
+    # Step 1: Baseline Analysis
+    session = requests.Session()
+    if initial_cookies:
+        session.cookies.update(initial_cookies)
+
+    baseline_response = session.get(target_url, headers={'User-Agent': random.choice(config["user_agents"])}, proxies=config.get("proxy"))
+    baseline_status = baseline_response.status_code
+    baseline_body_size = len(baseline_response.text)
+    baseline_text = baseline_response.text
+
+    # Step 2: Failure Analysis
+    invalid_password = "a7d8f9a0-c8e6-4b1d-9e9f-5c9a8b0d1c2e"
+    payload = {
+        username_field: "invaliduser",
+        password_field: invalid_password
+    }
+
+    if form_method == "POST":
+        failure_response = session.post(target_url, data=payload, headers={'User-Agent': random.choice(config["user_agents"])}, proxies=config.get("proxy"))
+    else:
+        failure_response = session.get(target_url, params=payload, headers={'User-Agent': random.choice(config["user_agents"])}, proxies=config.get("proxy"))
+
+    # Step 3: Differential Comparison
+    failure_status = failure_response.status_code
+    failure_body = failure_response.text
+
+    failure_keywords = []
+    # Simple text comparison to find new error messages
+    if failure_body != baseline_text:
+        # This is a very basic diff, a more advanced approach would be to use a library like difflib
+        # For now, we'll just look for new words in the failure body
+        baseline_words = set(baseline_text.lower().split())
+        failure_words = set(failure_body.lower().split())
+        new_words = failure_words - baseline_words
+        # Filter for common error words
+        error_keywords = ["error", "invalid", "incorrect", "failed", "wrong"]
+        for word in new_words:
+            if any(error_keyword in word for error_keyword in error_keywords):
+                failure_keywords.append(word)
+
+    # Step 4: Defining Success
+    generated_heuristics = {
+        "success_status_codes": [302],
+        "success_headers": {"Set-Cookie": "sessionid"},
+        "failure_status_codes": [401, 403, 429] if failure_status in [401, 403, 429] else [],
+        "failure_body_keywords": failure_keywords
+    }
+
+    return generated_heuristics
+
 def execute_login_attempt(username, password, target_post_url, username_field_name, password_field_name, form_method, initial_cookies, final_config, csrf_token):
     # This function will be executed by each thread
     with requests.Session() as session:
@@ -513,14 +564,28 @@ def test_credentials_stream():
 
         # --- Configuration Merging ---
         req_config = data.get('config', {})
+        heuristics_config = req_config.get("heuristics", {})
+
         final_config = {
             "requests_per_minute": req_config.get("requests_per_minute", config.DEFAULT_REQUESTS_PER_MINUTE),
             "user_agents": req_config.get("user_agents", config.DEFAULT_USER_AGENTS),
             "proxy": req_config.get("proxy", config.DEFAULT_PROXY),
-            "heuristics": {**config.DEFAULT_HEURISTICS, **req_config.get("heuristics", {})},
+            "heuristics": heuristics_config,
             "login_page_url": req_config.get("login_page_url", data['target_post_url']),
             "csrf_token_field_name": req_config.get("csrf_token_field_name") # Can be None
         }
+
+        if final_config["heuristics"] == "auto":
+            final_config["heuristics"] = discover_heuristics(
+                final_config["login_page_url"],
+                data['username_field_name'],
+                data['password_field_name'],
+                data['form_method'],
+                data.get('cookies', {}),
+                final_config
+            )
+        else:
+            final_config["heuristics"] = {**config.DEFAULT_HEURISTICS, **heuristics_config}
 
         # --- Credential Parsing ---
         username_list_payload = data.get('username_list', [])
