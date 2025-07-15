@@ -106,7 +106,7 @@ class TestCredentialsEndpointSourceLogic(unittest.TestCase):
         # Patch parse_auth_content, not parse_auth_file
         # No need to patch AUTH_FILE_PATH as it's removed
         with patch('server.app.parse_auth_content', return_value=[("file_user1", "file_pass1"), ("file_user2", "file_pass2")]) as mock_parse_content:
-            response = self.app.post('/test_credentials', json=request_data)
+            response = self.app.post('/test_credentials_stream', json=request_data)
             self.assertEqual(response.status_code, 200)
             self.assertTrue(response.is_streamed)
 
@@ -115,7 +115,7 @@ class TestCredentialsEndpointSourceLogic(unittest.TestCase):
             # Verify parse_auth_content was called with the string content
             mock_parse_content.assert_called_once_with(auth_content_data)
 
-            self.assertIn("Using 2 credential pairs from uploaded auth content.", stream_content)
+            self.assertIn("Using 2 credential pairs from uploaded content.", stream_content)
             self.assertIn('"total_expected_attempts": 2', stream_content)
             self.assertIn('"username": "file_user1"', stream_content)
             self.assertIn('"password_actual": "file_pass1"', stream_content)
@@ -137,13 +137,13 @@ class TestCredentialsEndpointSourceLogic(unittest.TestCase):
         request_data = self._make_test_credentials_request_data(auth_file_content=None)
 
         with patch('server.app.parse_auth_content') as mock_parse_content: # Ensure it's not called
-            response = self.app.post('/test_credentials', json=request_data)
+            response = self.app.post('/test_credentials_stream', json=request_data)
             self.assertEqual(response.status_code, 200)
 
             stream_content = b"".join(response.response).decode('utf-8')
 
             mock_parse_content.assert_not_called()
-            self.assertIn("No auth file content provided. Using 2 credential pairs from individual payload lists.", stream_content)
+            self.assertIn("Using 2 credential pairs from individual lists.", stream_content)
             self.assertIn('"total_expected_attempts": 2', stream_content)
             self.assertIn('"username": "payload_user1"', stream_content)
             self.assertIn('"password_actual": "payload_pass1"', stream_content)
@@ -166,7 +166,7 @@ class TestCredentialsEndpointSourceLogic(unittest.TestCase):
         # If auth_file_content is an empty string, the `if auth_file_content:` check in app.py fails,
         # so parse_auth_content is NOT called. The system falls back to payload lists.
         with patch('server.app.parse_auth_content') as mock_parse_content:
-            response = self.app.post('/test_credentials', json=request_data)
+            response = self.app.post('/test_credentials_stream', json=request_data)
             self.assertEqual(response.status_code, 200)
 
             stream_content = b"".join(response.response).decode('utf-8')
@@ -174,7 +174,7 @@ class TestCredentialsEndpointSourceLogic(unittest.TestCase):
             mock_parse_content.assert_not_called() # Should NOT be called for an empty string auth_file_content
             # The message should reflect that no *valid* auth content was found, leading to fallback.
             # Based on current app.py logic, an empty string auth_file_content will trigger the 'else' branch of 'if auth_file_content:'
-            self.assertIn("No auth file content provided. Using 2 credential pairs from individual payload lists.", stream_content)
+            self.assertIn("Using 2 credential pairs from individual lists.", stream_content)
             self.assertIn('"total_expected_attempts": 2', stream_content)
             self.assertIn('"username": "payload_user1"', stream_content)
             self.assertIn('"password_actual": "payload_pass1"', stream_content)
@@ -198,18 +198,8 @@ class TestCredentialsEndpointSourceLogic(unittest.TestCase):
 
         # parse_auth_content will be called with "malformed:content" and return []
         with patch('server.app.parse_auth_content', return_value=[]) as mock_parse_content:
-            response = self.app.post('/test_credentials', json=request_data)
-            self.assertEqual(response.status_code, 200)
-            stream_content = b"".join(response.response).decode('utf-8')
-
-            mock_parse_content.assert_called_once_with("malformed:content")
-
-            # Check the initial_info message
-            self.assertIn("Test run initiated. No valid credentials provided from any source. Expecting 0 pairs to be tested.", stream_content)
-
-            # Check for the SSE completion message indicating no pairs to test
-            self.assertIn('"message": "No username/password pairs to test."', stream_content)
-            self.assertIn('"status": "complete"', stream_content)
+            response = self.app.post('/test_credentials_stream', json=request_data)
+            self.assertEqual(response.status_code, 400)
 
 
 if __name__ == '__main__':

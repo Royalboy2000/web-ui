@@ -506,8 +506,11 @@ document.addEventListener('DOMContentLoaded', () => {
         row.insertCell().textContent = '********';
 
         const statusCell = row.insertCell();
-        statusCell.textContent = data.status || 'UNKNOWN';
+        statusCell.textContent = data.status ? data.status.toUpperCase() : 'UNKNOWN';
         statusCell.className = `status-${data.status ? data.status.toLowerCase() : 'unknown'}`;
+        if (data.status === '2fa_required') {
+            statusCell.style.color = 'orange';
+        }
 
         row.insertCell().textContent = data.status_code || 'N/A';
         row.insertCell().textContent = data.content_length === -1 ? 'N/A' : (data.content_length === undefined ? 'N/A' : data.content_length);
@@ -565,17 +568,26 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+        const requestsPerMinuteInput = document.getElementById('requests-per-minute');
+        const proxyInput = document.getElementById('proxy');
+        const userAgentsInput = document.getElementById('user-agents');
+
         const payload = {
             target_post_url: detectedPostUrlInput.value,
             username_field_name: detectedUsernameFieldInput.value,
             password_field_name: detectedPasswordFieldInput.value,
             form_method: currentAnalysisResult.form_method || 'POST',
-            csrf_token_name: detectedCsrfNameInput.value || null,
-            csrf_token_value: detectedCsrfValueInput.value || null,
             cookies: currentAnalysisResult.cookies || {},
             auth_file_content: authFileContent,
             username_list: usernameList,
             password_list: passwordList,
+            config: {
+                requests_per_minute: requestsPerMinuteInput.value ? parseInt(requestsPerMinuteInput.value, 10) : null,
+                proxy: proxyInput.value || null,
+                user_agents: userAgentsInput.value ? userAgentsInput.value.split('\n').map(ua => ua.trim()).filter(ua => ua) : null,
+                login_page_url: currentAnalysisResult.login_form_render_url || detectedPostUrlInput.value,
+                csrf_token_field_name: detectedCsrfNameInput.value || null
+            }
         };
         if (currentAnalysisResult.form_parameters) {
             payload.form_parameters = currentAnalysisResult.form_parameters;
@@ -590,7 +602,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if(liveFeedTbody) liveFeedTbody.innerHTML = '';
 
-        fetch('/test_credentials', {
+        fetch('/test_credentials_stream', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)

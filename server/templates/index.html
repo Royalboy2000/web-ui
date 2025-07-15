@@ -292,34 +292,43 @@
 
                 <div class="scan-step-section card" id="scan-step-3" style="display: none;">
                     <div class="section-header collapsible-header" data-target-step="3">
-                        <h1>Step 3: Provide Credentials</h1>
+                        <h1>Step 3: Provide Credentials & Advanced Configuration</h1>
                         <svg class="icon icon-chevron-down"><use href="#icon-chevron-down"/></svg>
                     </div>
                     <div class="collapsible-content" style="display: none;">
                         <div class="card-grid">
                              <div class="form-card">
-                                <div class="card-header"><h2>Upload Username:Password Combo File</h2></div>
+                                <div class="card-header"><h2>Credentials</h2></div>
                                 <form id="combo-file-form">
                                     <div class="form-group">
+                                        <label for="combo-file-input">Combo File (user:pass)</label>
                                         <input type="file" id="combo-file-input" accept=".txt,.csv">
-                                        <label for="combo-file-input" class="button button-secondary" style="width:auto; margin-top: 5px;">Browse Combo File</label>
-                                        <p id="combo-file-name" style="margin-top: 5px; font-size: 0.9rem;"></p>
+                                    </div>
+                                    <p>OR</p>
+                                    <div class="form-group">
+                                        <label for="username-list-input">Username List</label>
+                                        <input type="file" id="username-list-input" accept=".txt,.csv">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="password-list-input">Password List</label>
+                                        <input type="file" id="password-list-input" accept=".txt,.csv">
                                     </div>
                                 </form>
                             </div>
                             <div class="form-card">
-                                <div class="card-header"><h2>Provide Separate Lists (if no combo file)</h2></div>
-                                <form id="separate-lists-form">
+                                <div class="card-header"><h2>Advanced Options</h2></div>
+                                <form id="advanced-options-form">
                                     <div class="form-group">
-                                        <input type="file" id="username-list-input" accept=".txt,.csv">
-                                         <label for="username-list-input" class="button button-secondary" style="width:auto; margin-top: 5px;">Browse Username File</label>
-                                         <p id="username-list-file-name" style="margin-top: 5px; font-size: 0.9rem;"></p>
-                                        <input type="text" id="single-username-input" placeholder="Or type single username/email here" style="margin-top: 10px;">
+                                        <label for="requests-per-minute">Requests per Minute</label>
+                                        <input type="number" id="requests-per-minute" placeholder="0 or empty for no limit">
                                     </div>
                                     <div class="form-group">
-                                        <input type="file" id="password-list-input" accept=".txt,.csv">
-                                        <label for="password-list-input" class="button button-secondary" style="width:auto; margin-top: 5px;">Browse Password File</label>
-                                        <p id="password-list-file-name" style="margin-top: 5px; font-size: 0.9rem;"></p>
+                                        <label for="proxy">Proxy (e.g., http://user:pass@host:port)</label>
+                                        <input type="text" id="proxy" placeholder="Leave empty for no proxy">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="user-agents">User-Agents (one per line)</label>
+                                        <textarea id="user-agents" rows="3"></textarea>
                                     </div>
                                 </form>
                             </div>
