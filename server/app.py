@@ -545,6 +545,19 @@ def execute_login_attempt(username, password, target_post_url, username_field_na
                     status = "failure"
                     details = "No redirect on failure"
 
+            analysis = {
+                "score": "N/A",
+                "positive_indicators": [],
+                "negative_indicators": []
+            }
+
+            if status == "success":
+                analysis["score"] = "High"
+                analysis["positive_indicators"].append(details)
+            elif status == "failure":
+                analysis["score"] = "Low"
+                analysis["negative_indicators"].append(details)
+
             return {
                 "username": username,
                 "password_actual": password,
@@ -552,7 +565,8 @@ def execute_login_attempt(username, password, target_post_url, username_field_na
                 "details": details,
                 "response_url": response.url,
                 "status_code": response.status_code,
-                "content_length": len(response.text)
+                "content_length": len(response.text),
+                "analysis": analysis
             }
 
         except requests.exceptions.RequestException as e:
@@ -560,7 +574,12 @@ def execute_login_attempt(username, password, target_post_url, username_field_na
                 "username": username,
                 "password": password,
                 "status": "error",
-                "details": str(e)
+                "details": str(e),
+                "analysis": {
+                    "score": "N/A",
+                    "positive_indicators": [],
+                    "negative_indicators": [str(e)]
+                }
             }
 
 @app.route('/test_credentials_stream', methods=['POST'])
