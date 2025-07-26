@@ -22,6 +22,13 @@ class TestAuthContentParsing(unittest.TestCase): # Renamed class
         self.assertIn(("user2", "pass2"), creds)
         self.assertIn(("email@example.com", "Password123"), creds)
 
+    def test_parse_auth_content_with_url_and_port(self):
+        """Test parsing of a URL with a port number."""
+        content_string = "http://user:password@example.com:8080"
+        creds = parse_auth_content(content_string)
+        self.assertEqual(len(creds), 1)
+        self.assertIn(("user", "password"), creds)
+
     def test_parse_valid_auth_content_multiple_colons(self): # Renamed test
         content_string = "http://site.com:user1:pass1\nignorethis:user2:pass2\nfield1:field2:email@example.com:Password123\n"
         creds = parse_auth_content(content_string)
