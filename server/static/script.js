@@ -392,19 +392,32 @@ document.addEventListener('DOMContentLoaded', () => {
     function showLogDetails(logIndex) {
         const entry = logEntries[logIndex];
         if (!entry || !logDetailsModal) return;
+
         if (modalTitle) modalTitle.textContent = `Attempt Details (#${entry.attemptNumber || logIndex + 1})`;
-        let requestText = `Target URL: ${ (currentAnalysisResult && currentAnalysisResult.post_url) || 'N/A'}\nMethod: ${(currentAnalysisResult && currentAnalysisResult.form_method) || 'POST'}\n\nPayload Sent (Key Fields):\n`;
+
+        // Check if currentAnalysisResult is available before using it.
+        if (!currentAnalysisResult) {
+            // Handle the case where analysis results are not available.
+            // For instance, show a message or default text.
+            if (modalRequestInfo) modalRequestInfo.textContent = "Analysis data is not available.";
+            if (modalResponseInfo) modalResponseInfo.textContent = "Response data is not available.";
+            if (modalAnalysisSummary) modalAnalysisSummary.textContent = "Analysis summary is not available.";
+            logDetailsModal.style.display = 'flex';
+            return;
+        }
+
+        let requestText = `Target URL: ${currentAnalysisResult.post_url || 'N/A'}\nMethod: ${currentAnalysisResult.form_method || 'POST'}\n\nPayload Sent (Key Fields):\n`;
         if(entry.request_details){
-            const userField = currentAnalysisResult?.username_field_name;
-            const passField = currentAnalysisResult?.password_field_name;
+            const userField = currentAnalysisResult.username_field_name;
+            const passField = currentAnalysisResult.password_field_name;
             if (userField && entry.request_details[userField]) requestText += `  ${userField}: ${entry.request_details[userField]}\n`;
             if (passField && entry.request_details[passField]) requestText += `  ${passField}: ********\n`;
-            if (currentAnalysisResult?.csrf_token_name && entry.request_details[currentAnalysisResult.csrf_token_name]) requestText += `  ${currentAnalysisResult.csrf_token_name}: ${entry.request_details[currentAnalysisResult.csrf_token_name]}\n`;
+            if (currentAnalysisResult.csrf_token_name && entry.request_details[currentAnalysisResult.csrf_token_name]) requestText += `  ${currentAnalysisResult.csrf_token_name}: ${entry.request_details[currentAnalysisResult.csrf_token_name]}\n`;
         } else requestText += "  (No specific username/password payload found in this log entry's request_details)\n";
-        if (currentAnalysisResult && currentAnalysisResult.form_parameters) {
+        if (currentAnalysisResult.form_parameters) {
             let addedFormParams = false; let tempFormParamText = "\nAdditional Form Parameters (from initial analysis):\n";
             for (const key in currentAnalysisResult.form_parameters) {
-                if (!(key === (currentAnalysisResult?.username_field_name)) && !(key === (currentAnalysisResult?.password_field_name)) && !(key === (currentAnalysisResult?.csrf_token_name)) ) {
+                if (!(key === userField) && !(key === passField) && !(key === currentAnalysisResult.csrf_token_name) ) {
                      tempFormParamText += `  ${key}: ${currentAnalysisResult.form_parameters[key]}\n`; addedFormParams = true;
                 }}
             if(addedFormParams) requestText += tempFormParamText;

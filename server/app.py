@@ -18,7 +18,7 @@ from cachetools import TTLCache
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import common_field_names
-import config
+from . import config
 
 app = Flask(__name__, static_folder='static', template_folder='templates')
 
@@ -36,6 +36,7 @@ def parse_auth_content(file_content_string):
     Each line in the string should be in a format like username:password or email:password.
     It tries to intelligently split lines with multiple colons,
     assuming the last part is the password and the second to last is the username/email.
+    It also handles URLs with ports, extracting the username and password without the port.
     """
     credentials = []
     if not file_content_string:
@@ -47,6 +48,16 @@ def parse_auth_content(file_content_string):
         line = line.strip()
         if not line or line.startswith('#'):  # Skip empty lines and comments
             continue
+
+        try:
+            # Handle URLs with ports by attempting to parse them.
+            parsed_url = urlparse(line)
+            if parsed_url.username and parsed_url.password:
+                credentials.append((parsed_url.username, parsed_url.password))
+                continue
+        except Exception:
+            # If parsing fails, it's not a URL, so proceed with normal parsing.
+            pass
 
         parts = line.split(':')
         if len(parts) >= 2:
