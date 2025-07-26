@@ -18,7 +18,7 @@ from cachetools import TTLCache
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import common_field_names
-from . import config
+import config
 
 app = Flask(__name__, static_folder='static', template_folder='templates')
 
