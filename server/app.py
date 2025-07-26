@@ -453,123 +453,127 @@ def discover_heuristics(target_url, username_field, password_field, form_method,
 
     return generated_heuristics
 
+def _make_login_request(session, username, password, target_post_url, username_field_name, password_field_name, form_method, final_config, csrf_token):
+    user_agents = final_config.get("user_agents") or config.DEFAULT_USER_AGENTS
+    user_agent = random.choice(user_agents)
+    headers = {
+        'User-Agent': user_agent,
+        'Origin': urlparse(target_post_url).scheme + '://' + urlparse(target_post_url).netloc,
+        'Referer': target_post_url
+    }
+
+    proxies = {"http": final_config["proxy"], "https": final_config["proxy"]} if final_config["proxy"] else None
+
+    payload = {
+        username_field_name: username,
+        password_field_name: password
+    }
+
+    if csrf_token:
+        payload[csrf_token['name']] = csrf_token['value']
+
+    if final_config["requests_per_minute"]:
+        delay = 60.0 / final_config["requests_per_minute"]
+        with queue_lock:
+            request_queue.append(time.time())
+            while len(request_queue) > 1 and (request_queue[-1] - request_queue[0]) > 60:
+                request_queue.pop(0)
+            if len(request_queue) > final_config["requests_per_minute"]:
+                time.sleep(delay)
+
+    if form_method == 'POST':
+        return session.post(target_post_url, data=payload, headers=headers, proxies=proxies, timeout=10, allow_redirects=True)
+    else: # GET
+        return session.get(target_post_url, params=payload, headers=headers, proxies=proxies, timeout=10, allow_redirects=True)
+
+
+def _analyze_response(response, heuristics):
+    status = "unknown"
+    details = []
+
+    if any(keyword in response.text.lower() for keyword in ["2fa", "two-factor", "mfa", "multi-factor"]):
+        status = "2fa_required"
+        details.append("Landed on 2FA/MFA page.")
+
+    if status == "unknown":
+        if response.status_code in heuristics.get("success_status_codes", []):
+            status = "success"
+            details.append(f"Success status code: {response.status_code}")
+        for header, value in heuristics.get("success_headers", {}).items():
+            if header in response.headers and value in response.headers[header]:
+                status = "success"
+                details.append(f"Success header found: {header}: {response.headers[header]}")
+        try:
+            json_response = response.json()
+            for key, value in heuristics.get("success_json", {}).items():
+                if json_response.get(key) == value:
+                    status = "success"
+                    details.append(f"Success JSON response: {key}: {value}")
+        except ValueError:
+            pass
+        if "Location" in response.headers:
+            status = "success"
+            details.append(f"Redirected to {response.headers['Location']}")
+        for keyword in heuristics.get("success_body_keywords", []):
+            if keyword in response.text.lower():
+                status = "success"
+                details.append(f"Found success keyword in response body: {keyword}")
+
+    if status == "unknown":
+        if response.status_code in heuristics.get("failure_status_codes", []):
+            status = "failure"
+            details.append(f"Failure status code: {response.status_code}")
+        for keyword in heuristics.get("failure_body_keywords", []):
+            if keyword in response.text.lower():
+                status = "failure"
+                details.append(f"Failure keyword found: {keyword}")
+        if heuristics.get("failure_headers", {}).get("Location") is None and "Location" not in response.headers:
+            status = "failure"
+            details.append("No redirect on failure")
+
+    return status, details
+
+def _generate_analysis_summary(status, details):
+    analysis = {
+        "score": "N/A",
+        "positive_indicators": [],
+        "negative_indicators": []
+    }
+
+    if status == "success":
+        analysis["score"] = "High"
+        analysis["positive_indicators"] = details
+    elif status == "failure":
+        analysis["score"] = "Low"
+        analysis["negative_indicators"] = details
+
+    return analysis
+
 def execute_login_attempt(username, password, target_post_url, username_field_name, password_field_name, form_method, initial_cookies, final_config, csrf_token):
-    # This function will be executed by each thread
     with requests.Session() as session:
         if initial_cookies:
             session.cookies.update(initial_cookies)
 
-        # User-Agent Rotation
-        user_agents = final_config.get("user_agents") or config.DEFAULT_USER_AGENTS
-        user_agent = random.choice(user_agents)
-        headers = {
-            'User-Agent': user_agent,
-            'Origin': urlparse(target_post_url).scheme + '://' + urlparse(target_post_url).netloc,
-            'Referer': target_post_url
-        }
-
-        # Proxy Support
-        proxies = {"http": final_config["proxy"], "https": final_config["proxy"]} if final_config["proxy"] else None
-
-        payload = {
-            username_field_name: username,
-            password_field_name: password
-        }
-
-        if csrf_token:
-            payload[csrf_token['name']] = csrf_token['value']
-
         try:
-            # Rate Limiting
-            if final_config["requests_per_minute"]:
-                delay = 60.0 / final_config["requests_per_minute"]
-                with queue_lock:
-                    request_queue.append(time.time())
-                    while len(request_queue) > 1 and (request_queue[-1] - request_queue[0]) > 60:
-                        request_queue.pop(0)
-                    if len(request_queue) > final_config["requests_per_minute"]:
-                        time.sleep(delay)
+            response = _make_login_request(session, username, password, target_post_url, username_field_name, password_field_name, form_method, final_config, csrf_token)
+            status, details = _analyze_response(response, final_config["heuristics"])
+            analysis = _generate_analysis_summary(status, details)
 
-            if form_method == 'POST':
-                response = session.post(target_post_url, data=payload, headers=headers, proxies=proxies, timeout=10, allow_redirects=True)
-            else: # GET
-                response = session.get(target_post_url, params=payload, headers=headers, proxies=proxies, timeout=10, allow_redirects=True)
-
-            # Advanced Heuristics
-            heuristics = final_config["heuristics"]
-            status = "unknown"
-            details = ""
-
-            # Check for 2FA/MFA first
-            if any(keyword in response.text.lower() for keyword in ["2fa", "two-factor", "mfa", "multi-factor"]):
-                status = "2fa_required"
-                details = "Landed on 2FA/MFA page."
-
-            # Success Heuristics
-            if status == "unknown":
-                if response.status_code in heuristics.get("success_status_codes", []):
-                    status = "success"
-                    details = f"Success status code: {response.status_code}"
-                for header, value in heuristics.get("success_headers", {}).items():
-                    if header in response.headers and value in response.headers[header]:
-                        status = "success"
-                        details = f"Success header found: {header}: {response.headers[header]}"
-                        break
-                try:
-                    json_response = response.json()
-                    for key, value in heuristics.get("success_json", {}).items():
-                        if json_response.get(key) == value:
-                            status = "success"
-                            details = f"Success JSON response: {key}: {value}"
-                            break
-                except ValueError:
-                    pass # Not a JSON response
-                if "Location" in response.headers:
-                    status = "success"
-                    details = f"Redirected to {response.headers['Location']}"
-                if any(keyword in response.text.lower() for keyword in ["welcome", "dashboard", "logout"]):
-                    status = "success"
-                    details = "Found success keyword in response body."
-
-            # Failure Heuristics
-            if status == "unknown":
-                if response.status_code in heuristics.get("failure_status_codes", []):
-                    status = "failure"
-                    details = f"Failure status code: {response.status_code}"
-                for keyword in heuristics.get("failure_body_keywords", []):
-                    if keyword in response.text.lower():
-                        status = "failure"
-                        details = f"Failure keyword found: {keyword}"
-                        break
-                if heuristics.get("failure_headers", {}).get("Location") is None and "Location" not in response.headers:
-                    status = "failure"
-                    details = "No redirect on failure"
-
-            analysis = {
-                "score": "N/A",
-                "positive_indicators": [],
-                "negative_indicators": []
-            }
-
-            if status == "success":
-                analysis["score"] = "High"
-                analysis["positive_indicators"].append(details)
-            elif status == "failure":
-                analysis["score"] = "Low"
-                analysis["negative_indicators"].append(details)
-
-            return {
+            result = {
                 "username": username,
                 "password_actual": password,
                 "status": status,
-                "details": details,
+                "details": ", ".join(details),
                 "response_url": response.url,
                 "status_code": response.status_code,
                 "content_length": len(response.text),
                 "analysis": analysis
             }
+            app.logger.info(f"Login attempt result: {result}")
+            return result
 
         except requests.exceptions.RequestException as e:
+            app.logger.error(f"Request exception during login attempt for user {username}: {e}")
             return {
                 "username": username,
                 "password": password,
@@ -601,6 +605,8 @@ def test_credentials_stream():
             missing = [field for field in required_fields if field not in data]
             app.logger.warning(f"Missing required fields in /test_credentials_stream from {request.remote_addr}: {', '.join(missing)}")
             return jsonify({"error": f"Missing required fields: {', '.join(missing)}"}), 400
+
+        app.logger.info(f"Starting test run with configuration: {data.get('config', {})}")
 
         # --- Configuration Merging ---
         req_config = data.get('config', {})
