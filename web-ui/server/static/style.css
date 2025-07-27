@@ -1,0 +1,1085 @@
+/* 1. SETUP & THEME VARIABLES */
+:root {
+    /* Color Palette (Dark Theme) */
+    --color-primary: #3b82f6; /* Blue 500 */
+    --color-primary-light: rgba(59, 130, 246, 0.1);
+    --color-secondary: #1f2937; /* Gray 800 */
+    --color-background: #111827; /* Gray 900 */
+    --color-surface: #1f2937; /* Gray 800 */
+    --color-text-primary: #f9fafb; /* Gray 50 */
+    --color-text-secondary: #9ca3af; /* Gray 400 */
+    --color-border: #374151; /* Gray 700 */
+    --color-success: #22c55e;
+    --color-success-light: rgba(34, 197, 94, 0.1);
+    --color-warning: #f59e0b;
+    --color-warning-light: rgba(245, 158, 11, 0.1);
+    --color-error: #ef4444;
+    --color-error-light: rgba(239, 68, 68, 0.1);
+
+    /* Typography */
+    --font-family-sans: 'Inter', sans-serif;
+    --font-family-display: 'Lexend', sans-serif;
+    --line-height-base: 1.6;
+
+    /* Spacing & Sizing */
+    --spacing-1: 0.25rem;
+    --spacing-2: 0.5rem;
+    --spacing-3: 0.75rem;
+    --spacing-4: 1rem;
+    --spacing-6: 1.5rem;
+    --spacing-8: 2rem;
+    --sidebar-width: 260px;
+    --sidebar-width-collapsed: 80px;
+
+    /* Borders & Shadows */
+    --border-radius-sm: 0.25rem;
+    --border-radius-md: 0.5rem;
+    --border-radius-lg: 0.75rem;
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.1);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+
+    /* Transitions */
+    --transition-base: 250ms cubic-bezier(0.4, 0, 0.2, 1);
+    --color-surface-rgb: 31, 41, 55; /* Default for dark theme (Gray 800) */
+}
+
+/* Light Theme Variables */
+html[data-theme='light'] {
+    --color-primary: #2563eb;
+    --color-primary-light: rgba(37, 99, 235, 0.1);
+    --color-secondary: #f3f4f6; /* Gray 100 */
+    --color-background: #f9fafb; /* Gray 50 */
+    --color-surface: #ffffff;
+    --color-text-primary: #1f2937; /* Gray 800 */
+    --color-text-secondary: #6b7280; /* Gray 500 */
+    --color-border: #e5e7eb; /* Gray 200 */
+    --color-surface-rgb: 255, 255, 255; /* For light theme (white) */
+}
+
+/* 2. BASE & RESET STYLES */
+*, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: var(--font-family-sans);
+    line-height: var(--line-height-base);
+    background-color: var(--color-background);
+    color: var(--color-text-primary);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    transition: background-color var(--transition-base), color var(--transition-base);
+}
+
+h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-family-display);
+    font-weight: 600;
+    line-height: 1.2;
+}
+
+a {
+    color: var(--color-primary);
+    text-decoration: none;
+    transition: color var(--transition-base);
+}
+
+a:hover {
+    text-decoration: underline;
+}
+
+.icon {
+    width: 1.25rem;
+    height: 1.25rem;
+    stroke-width: 1.5;
+}
+
+/* 3. LAYOUT STRUCTURE */
+.page-container {
+    display: flex;
+    min-height: 100vh;
+}
+
+.sidebar {
+    width: var(--sidebar-width);
+    background-color: var(--color-surface);
+    border-right: 1px solid var(--color-border);
+    display: flex;
+    flex-direction: column;
+    padding: var(--spacing-4);
+    transition: width var(--transition-base), padding var(--transition-base), transform var(--transition-base);
+    flex-shrink: 0;
+}
+
+.main-content {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    overflow-x: hidden;
+}
+
+.main-header {
+    position: sticky;
+    top: 0;
+    background-color: rgba(var(--color-surface-rgb), 0.8);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--color-border);
+    padding: var(--spacing-3) var(--spacing-6);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    z-index: 10;
+}
+
+.content-section {
+    padding: var(--spacing-6);
+}
+
+/* Sidebar Collapsed State */
+.sidebar.collapsed {
+    width: var(--sidebar-width-collapsed);
+    padding: var(--spacing-4) var(--spacing-2);
+}
+
+.sidebar.collapsed .logo span,
+.sidebar.collapsed .nav-link span:not(.badge),
+.sidebar.collapsed .sidebar-footer .nav-link span {
+    display: none;
+}
+
+.sidebar.collapsed .sidebar-header,
+.sidebar.collapsed .nav-link {
+    justify-content: center;
+}
+
+/* 4. COMPONENT STYLES */
+
+/* Sidebar */
+.sidebar-header {
+    padding-bottom: var(--spacing-6);
+    display: flex;
+    align-items: center;
+}
+
+.logo {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-3);
+    font-family: var(--font-family-display);
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--color-text-primary);
+    text-decoration: none;
+}
+.logo svg { color: var(--color-primary); }
+.logo:hover { text-decoration: none; }
+
+.sidebar-nav {
+    flex-grow: 1;
+}
+
+.nav-link {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-4);
+    padding: var(--spacing-3) var(--spacing-4);
+    border-radius: var(--border-radius-md);
+    color: var(--color-text-secondary);
+    font-weight: 500;
+    margin-bottom: var(--spacing-2);
+    transition: background-color var(--transition-base), color var(--transition-base);
+    position: relative;
+    overflow: hidden;
+}
+
+.nav-link:hover {
+    background-color: var(--color-secondary);
+    color: var(--color-text-primary);
+    text-decoration: none;
+}
+
+.nav-link.active {
+    background-color: var(--color-primary);
+    color: white;
+}
+.nav-link.active .icon { color: white; }
+
+.badge {
+    margin-left: auto;
+    background-color: var(--color-error);
+    color: white;
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 99px;
+}
+
+.sidebar-footer {
+    padding-top: var(--spacing-4);
+    border-top: 1px solid var(--color-border);
+}
+
+/* Header */
+.sidebar-toggle {
+    display: none; /* Hidden on desktop */
+    background: none;
+    border: none;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    padding: var(--spacing-2);
+    border-radius: 50%;
+    transition: background-color var(--transition-base);
+}
+.sidebar-toggle:hover {
+    background-color: var(--color-secondary);
+}
+
+
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-4);
+}
+
+.search-bar {
+    position: relative;
+}
+
+.search-bar .icon {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    left: var(--spacing-3);
+    color: var(--color-text-secondary);
+}
+
+.search-bar input {
+    background-color: var(--color-secondary);
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius-md);
+    padding: var(--spacing-2) var(--spacing-3) var(--spacing-2) calc(var(--spacing-3) + 1.5rem);
+    color: var(--color-text-primary);
+    width: 250px;
+    transition: all var(--transition-base);
+}
+.search-bar input::placeholder {
+    color: var(--color-text-secondary);
+}
+.search-bar input:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    background-color: var(--color-surface);
+}
+
+.icon-button {
+    background: none;
+    border: none;
+    color: var(--color-text-secondary);
+    padding: var(--spacing-2);
+    border-radius: 50%;
+    cursor: pointer;
+    position: relative;
+    transition: background-color var(--transition-base), color var(--transition-base);
+}
+.icon-button:hover { background-color: var(--color-secondary); color: var(--color-text-primary); }
+
+.notification-dot {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    width: 8px;
+    height: 8px;
+    background-color: var(--color-error);
+    border: 2px solid var(--color-surface);
+    border-radius: 50%;
+}
+
+.profile-dropdown {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-3);
+    cursor: pointer;
+    padding: var(--spacing-1);
+    border-radius: var(--border-radius-md);
+    transition: background-color var(--transition-base);
+}
+.profile-dropdown:hover { background-color: var(--color-secondary); }
+.profile-dropdown img { width: 40px; height: 40px; border-radius: 50%; }
+.profile-info { display: flex; flex-direction: column; }
+.profile-name { font-weight: 600; font-size: 0.9rem; }
+.profile-role { font-size: 0.8rem; color: var(--color-text-secondary); }
+.icon-chevron { color: var(--color-text-secondary); }
+
+
+/* Main Content & Cards */
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--spacing-6);
+}
+
+.section-header h1 {
+    font-size: 2rem;
+}
+
+.header-buttons {
+    display: flex;
+    gap: var(--spacing-3);
+}
+
+.card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: var(--spacing-6);
+}
+
+.card {
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius-lg);
+    padding: var(--spacing-6);
+    box-shadow: var(--shadow-sm);
+    transition: transform var(--transition-base), box-shadow var(--transition-base);
+}
+.card:hover { transform: translateY(-4px); box-shadow: var(--shadow-md); }
+
+.card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--spacing-4);
+}
+.card-header h2 { font-size: 1.25rem; }
+.card-header .link { font-size: 0.9rem; font-weight: 500; }
+
+.stat-card {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-4);
+}
+
+.card-icon {
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background-color: var(--icon-bg);
+    color: var(--icon-color);
+    flex-shrink: 0;
+}
+.card-icon .icon { width: 1.5rem; height: 1.5rem; }
+.stat-value { font-size: 2rem; font-weight: 600; font-family: var(--font-family-display); }
+.stat-label { color: var(--color-text-secondary); font-size: 0.9rem; }
+
+/* Table */
+.table-card {
+    grid-column: 1 / -1; /* Span full width */
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+th, td {
+    text-align: left;
+    padding: var(--spacing-3) var(--spacing-4);
+    border-bottom: 1px solid var(--color-border);
+    white-space: nowrap;
+}
+
+tbody tr:last-child td {
+    border-bottom: none;
+}
+
+thead th {
+    color: var(--color-text-secondary);
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 600;
+}
+
+.status-badge {
+    display: inline-block;
+    padding: 0.25em 0.6em;
+    font-size: 0.8rem;
+    font-weight: 600;
+    border-radius: 99px;
+}
+.status-success { background-color: var(--color-success-light); color: var(--color-success); }
+.status-warning { background-color: var(--color-warning-light); color: var(--color-warning); }
+.status-error { background-color: var(--color-error-light); color: var(--color-error); }
+
+/* 5. UI ELEMENTS */
+
+/* Buttons */
+.button {
+    border: none;
+    border-radius: var(--border-radius-md);
+    padding: var(--spacing-3) var(--spacing-4);
+    font-weight: 600;
+    cursor: pointer;
+    transition: all var(--transition-base);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-2);
+}
+.button-primary { background-color: var(--color-primary); color: white; }
+.button-primary:hover { opacity: 0.85; transform: translateY(-2px); }
+.button-secondary { background-color: transparent; color: var(--color-text-primary); border: 1px solid var(--color-border); }
+.button-secondary:hover { background-color: var(--color-secondary); }
+.full-width { width: 100%; }
+
+/* Forms */
+.form-group {
+    position: relative;
+    margin-bottom: var(--spacing-6);
+}
+
+.form-group input {
+    width: 100%;
+    padding: var(--spacing-4) var(--spacing-3) var(--spacing-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius-md);
+    background-color: transparent;
+    color: var(--color-text-primary);
+    font-size: 1rem;
+    transition: all var(--transition-base);
+}
+
+.form-group label {
+    position: absolute;
+    top: 50%;
+    left: var(--spacing-3);
+    transform: translateY(-50%);
+    color: var(--color-text-secondary);
+    pointer-events: none;
+    transition: all var(--transition-base);
+    background-color: var(--color-surface);
+    padding: 0 var(--spacing-1);
+}
+
+.form-group input:focus + label,
+.form-group input:not(:placeholder-shown) + label {
+    top: 0;
+    font-size: 0.75rem;
+    color: var(--color-primary);
+}
+.form-group input:focus {
+    outline: none;
+    border-color: var(--color-primary);
+}
+.form-group input:valid:not(:placeholder-shown) {
+    border-color: var(--color-success);
+}
+.form-group input:invalid:not(:placeholder-shown) {
+    border-color: var(--color-error);
+}
+
+
+/* Tooltip */
+.tooltip {
+    position: relative;
+}
+
+.tooltip::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    margin-bottom: var(--spacing-2);
+    background-color: #111827; /* Always dark for contrast */
+    color: white;
+    padding: var(--spacing-2) var(--spacing-3);
+    border-radius: var(--border-radius-md);
+    font-size: 0.8rem;
+    white-space: nowrap;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity var(--transition-base), visibility var(--transition-base);
+    z-index: 20;
+}
+
+.tooltip:hover::after {
+    opacity: 1;
+    visibility: visible;
+}
+
+
+/* Theme Switcher */
+.theme-switcher {
+    position: relative;
+    margin-top: var(--spacing-4);
+}
+.theme-toggle-checkbox {
+    display: none;
+}
+.theme-toggle-label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 60px;
+    height: 30px;
+    background-color: var(--color-secondary);
+    border-radius: 99px;
+    cursor: pointer;
+    padding: 5px;
+    position: relative;
+}
+.theme-toggle-label::after {
+    content: '';
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background-color: white;
+    transition: transform var(--transition-base);
+}
+.theme-toggle-checkbox:checked + .theme-toggle-label::after {
+    transform: translateX(30px);
+}
+.theme-toggle-label .icon {
+    color: var(--color-warning);
+}
+.theme-toggle-label .icon-moon {
+    color: var(--color-primary);
+}
+
+
+/* 6. RESPONSIVENESS (Mobile-First) */
+@media (max-width: 768px) {
+    .sidebar {
+        position: fixed;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        transform: translateX(-100%);
+        z-index: 20;
+        box-shadow: var(--shadow-md);
+    }
+    .sidebar.open {
+        transform: translateX(0);
+    }
+
+    .sidebar.collapsed {
+        /* On mobile, collapsed should still be off-screen */
+        transform: translateX(-100%);
+    }
+
+    .main-content {
+        width: 100%;
+    }
+
+    .sidebar-toggle {
+        display: flex;
+    }
+
+    .main-header {
+        justify-content: flex-start;
+        gap: var(--spacing-4);
+    }
+
+    .header-actions {
+        margin-left: auto;
+    }
+
+    .search-bar {
+        display: none; /* Hide search on mobile for simplicity */
+    }
+
+    .profile-info {
+        display: none;
+    }
+
+    .section-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--spacing-4);
+    }
+    .header-buttons {
+        width: 100%;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+/* Styles for New Scan Page */
+#new-scan-content .section-header h1 {
+    font-size: 1.5rem; /* Slightly smaller for step titles */
+    margin-bottom: var(--spacing-2);
+}
+
+#new-scan-content .card {
+    margin-bottom: var(--spacing-6);
+}
+
+#new-scan-content .form-card { /* Ensure form-cards within new-scan also behave */
+    padding: var(--spacing-4);
+}
+
+#new-scan-content textarea { /* Basic styling for textarea to match inputs */
+    width: 100%;
+    padding: var(--spacing-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius-md);
+    background-color: transparent;
+    color: var(--color-text-primary);
+    font-size: 1rem;
+    transition: all var(--transition-base);
+    font-family: var(--font-family-sans);
+    min-height: 100px; /* Default min height */
+}
+
+#new-scan-content textarea:focus {
+    outline: none;
+    border-color: var(--color-primary);
+}
+
+#new-scan-content input[type="file"] {
+    /* Hide default file input, custom label will trigger it */
+    /* display: none; */
+    /* Actually, let's make it visible but style the label as the button */
+    /* For simplicity, we'll rely on the label being styled as a button */
+    /* It's hard to fully restyle the default file input button itself across browsers */
+    /* So, the <label class="button"> approach is common. */
+    /* The HTML already has a label styled as a button, so this is mostly fine. */
+    /* We can add some margin if default input is shown next to label */
+    margin-top: var(--spacing-2);
+}
+
+
+#live-feed-container {
+    background-color: var(--color-background); /* Darker background for terminal feel */
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius-md);
+    padding: var(--spacing-4);
+    height: 400px;
+    overflow-y: auto;
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
+    font-size: 0.9rem;
+    line-height: 1.5;
+    color: var(--color-text-secondary);
+}
+
+#live-feed-container p {
+    margin-bottom: var(--spacing-1);
+    word-break: break-all; /* Prevent long strings from breaking layout */
+}
+#live-feed-container p:last-child {
+    margin-bottom: 0;
+}
+
+#live-feed-container .status-info { color: var(--color-primary); }
+#live-feed-container .status-success { color: var(--color-success); }
+#live-feed-container .status-failure { color: var(--color-error); }
+#live-feed-container .status-error { color: var(--color-error); font-weight: bold; }
+#live-feed-container .status-unknown { color: var(--color-warning); }
+
+
+/* Metrics display within launch-monitor-section */
+#launch-monitor-section .stat-card {
+    background-color: var(--color-secondary); /* Slightly different bg for contrast if needed */
+    padding: var(--spacing-3);
+    box-shadow: none; /* Remove card hover shadow if it's too much */
+}
+#launch-monitor-section .stat-card:hover {
+    transform: none; /* Disable hover transform for these specific stat cards */
+}
+
+
+#launch-monitor-section .stat-label {
+    font-size: 0.8rem;
+    color: var(--color-text-secondary);
+}
+#launch-monitor-section .stat-value {
+    font-size: 1.5rem; /* Smaller than main dashboard stats */
+    font-weight: 600;
+}
+#launch-monitor-section #metric-hits { /* Specific color for hits metric */
+    color: var(--color-success);
+}
+
+/* Adjustments for file input name display */
+#new-scan-content .form-group p {
+    margin-top: var(--spacing-2);
+    font-size: 0.9rem;
+    color: var(--color-text-secondary);
+}
+
+/* Preformatted text for displaying JSON data (cookies, params) */
+#new-scan-content pre {
+    background-color: var(--color-secondary);
+    padding: var(--spacing-3);
+    border-radius: var(--border-radius-sm);
+    border: 1px solid var(--color-border);
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
+    font-size: 0.85rem;
+    white-space: pre-wrap;       /* Since CSS 2.1 */
+    word-wrap: break-word;       /* Internet Explorer 5.5+ */
+    max-height: 150px;
+    overflow-y: auto;
+    margin-top: var(--spacing-2);
+}
+#new-scan-content h4 { /* Sub-headers for these sections */
+    font-size: 1rem;
+    margin-top: var(--spacing-4);
+    color: var(--color-text-primary);
+}
+
+/* Ensure labels for textareas behave like other form labels if needed */
+#new-scan-content .form-group textarea + label {
+    /* Similar to input + label, but might need adjustment if textarea is not empty via JS */
+    /* For simplicity, the placeholder attribute on textarea is often used instead of floating labels */
+}
+#new-scan-content .form-group textarea:focus + label,
+#new-scan-content .form-group textarea:not(:placeholder-shown) + label {
+     /* This works if placeholder is initially a space " " and then removed by JS on focus, or if JS adds a class */
+    top: 0; /* This is for the floating label effect if we were using it */
+    font-size: 0.75rem;
+    color: var(--color-primary);
+    /* background-color: var(--color-surface); Ensure this matches card bg */
+    /* padding: 0 var(--spacing-1); */
+}
+
+/* Making sure the label for textarea doesn't overlap if not using floating label */
+#new-scan-content .form-group textarea + label {
+    /* If not using floating label, this is not needed or should be different */
+}
+
+/* Hide the default file input text/button if we are using a label as a button */
+/* This is tricky. A common way: */
+#new-scan-content input[type="file"] {
+    /* To make the label clickable and hide the default input button effectively: */
+    /* position: absolute; */
+    /* width: 1px; */
+    /* height: 1px; */
+    /* padding: 0; */
+    /* margin: -1px; */
+    /* overflow: hidden; */
+    /* clip: rect(0, 0, 0, 0); */
+    /* border: 0; */
+    /* Better to just style the label and let the default input be there for accessibility */
+    /* Or use a wrapper and set opacity of input to 0 and position over styled button */
+}
+/* The HTML uses a <label class="button"> which is good. */
+/* Let's ensure the actual file input is not taking up weird space or looking ugly */
+#new-scan-content .form-group input[type="file"] {
+    display: block; /* Make it take its own line if not already */
+    margin-top: 5px;
+    /* Minimal styling for the actual input if it's somewhat visible */
+    color: var(--color-text-secondary);
+}
+html[data-theme='light'] #new-scan-content .form-group input[type="file"] {
+     color: var(--color-text-primary);
+}
+
+/* New Scan Page - Step Indicator */
+.step-indicator-container {
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    padding: var(--spacing-4);
+    margin-bottom: var(--spacing-6);
+    border-radius: var(--border-radius-md); /* Already a card, so this might be redundant */
+}
+
+.step-indicator {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    padding: var(--spacing-2);
+    border-radius: var(--border-radius-sm);
+    transition: background-color var(--transition-base);
+}
+.step-indicator:hover {
+    background-color: rgba(var(--color-primary-rgb), 0.1); /* Define --color-primary-rgb */
+}
+/* Define --color-primary-rgb if not already globally defined */
+:root {
+    --color-primary-rgb: 59, 130, 246; /* From --color-primary: #3b82f6; */
+}
+html[data-theme='light'] {
+    --color-primary-rgb: 37, 99, 235; /* From light theme --color-primary: #2563eb; */
+}
+
+
+.step-indicator .step-number {
+    font-size: 0.9rem;
+    font-weight: 600;
+    background-color: var(--color-secondary);
+    color: var(--color-text-secondary);
+    border-radius: 50%;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: var(--spacing-2);
+    border: 2px solid var(--color-border);
+}
+
+.step-indicator .step-label {
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+.step-indicator.active .step-number {
+    background-color: var(--color-primary);
+    color: white;
+    border-color: var(--color-primary);
+}
+.step-indicator.active .step-label {
+    color: var(--color-primary);
+    font-weight: 700;
+}
+
+.step-indicator.completed .step-number {
+    background-color: var(--color-success);
+    color: white;
+    border-color: var(--color-success);
+}
+.step-indicator.completed .step-label {
+    color: var(--color-text-secondary); /* Or var(--color-success) if preferred */
+}
+.step-indicator.completed:hover .step-label {
+    color: var(--color-text-primary);
+}
+
+
+.step-indicator-arrow {
+    color: var(--color-text-secondary);
+    font-size: 1.5rem;
+}
+
+/* New Scan Page - Collapsible Sections */
+.scan-step-section {
+    margin-bottom: var(--spacing-4);
+}
+.collapsible-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    padding: var(--spacing-4); /* Use card's default padding or define here */
+    /* background-color: var(--color-surface); /* Already part of .card */
+    /* border-bottom: 1px solid var(--color-border); */ /* Card has border already */
+}
+.collapsible-header h1 {
+    font-size: 1.25rem; /* Match card-header h2 */
+    margin-bottom: 0; /* Override default h1 margin */
+}
+.collapsible-header .icon-chevron-down {
+    transition: transform var(--transition-base);
+}
+/* Rotation is handled by JS: style.transform = 'rotate(180deg)' */
+
+.collapsible-content {
+    padding: var(--spacing-4); /* Content padding inside the card */
+    /* border-top: 1px solid var(--color-border); /* If header doesn't have bottom border */
+}
+
+
+/* New Scan Page - Structured Log Table */
+.table-responsive-wrapper {
+    overflow-x: auto; /* Ensure table is scrollable on small screens */
+    margin-bottom: var(--spacing-4);
+}
+.styled-table {
+    width: 100%;
+    border-collapse: collapse; /* remove "collapse" if using "border-spacing" */
+    /* border-spacing: 0; */ /* Use with border-collapse: separate; if preferred */
+    font-size: 0.9rem;
+}
+.styled-table th, .styled-table td {
+    padding: var(--spacing-3) var(--spacing-4);
+    text-align: left;
+    border-bottom: 1px solid var(--color-border);
+    white-space: nowrap; /* Prevent text wrapping initially */
+}
+.styled-table th {
+    color: var(--color-text-secondary);
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 600;
+    background-color: var(--color-secondary); /* Header background */
+}
+.styled-table tbody tr:hover {
+    background-color: rgba(var(--color-primary-rgb), 0.05);
+}
+.styled-table td .button-sm { /* For View Details button */
+    padding: var(--spacing-1) var(--spacing-2);
+    font-size: 0.8rem;
+}
+
+/* Status cell styling */
+.styled-table .status-success { color: var(--color-success); font-weight: bold; }
+.styled-table .status-failure { color: var(--color-error); font-weight: bold; }
+.styled-table .status-unknown { color: var(--color-warning); }
+.styled-table .status-error { color: var(--color-error); font-weight: bold; } /* For actual client/server errors */
+.styled-table .status-info { color: var(--color-primary); }
+
+
+/* Log Filter Controls */
+.log-filter-controls {
+    margin-bottom: var(--spacing-3);
+    text-align: right; /* Or flex justify-end */
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: var(--spacing-2);
+}
+.log-filter-controls .button-sm { /* Make filter buttons smaller */
+    padding: var(--spacing-1) var(--spacing-3);
+    font-size: 0.85rem;
+}
+
+
+/* Modal Styling */
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.6);
+    display: flex; /* Used 'flex' in JS for display:none toggle */
+    align-items: center;
+    justify-content: center;
+    z-index: 1000; /* Ensure it's on top */
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity var(--transition-base), visibility var(--transition-base);
+}
+.modal[style*="display: flex"] { /* When display is set to flex by JS */
+    opacity: 1;
+    visibility: visible;
+}
+
+.modal-content {
+    background-color: var(--color-surface);
+    border-radius: var(--border-radius-lg);
+    box-shadow: var(--shadow-md);
+    width: 90%;
+    max-width: 800px; /* Max width for the modal */
+    max-height: 80vh; /* Max height */
+    display: flex;
+    flex-direction: column;
+}
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--spacing-4); /* Use card-header padding */
+    border-bottom: 1px solid var(--color-border);
+}
+.modal-header h2 {
+    font-size: 1.25rem; /* Match card-header h2 */
+    margin: 0;
+}
+.modal-body {
+    padding: var(--spacing-4); /* Content padding */
+    overflow-y: auto; /* Scroll if content overflows */
+}
+.modal-body h4 {
+    font-size: 1rem;
+    margin-top: var(--spacing-4);
+    margin-bottom: var(--spacing-2);
+    color: var(--color-text-primary);
+}
+.modal-body pre { /* Style for pre tags inside modal */
+    background-color: var(--color-secondary);
+    padding: var(--spacing-3);
+    border-radius: var(--border-radius-sm);
+    border: 1px solid var(--color-border);
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
+    font-size: 0.85rem;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    max-height: 250px; /* Scrollable pre */
+    overflow-y: auto;
+}
+#modal-close-btn.icon-button { /* Ensure close button is styled like other icon buttons */
+    color: var(--color-text-secondary);
+    font-size: 1.5rem; /* Make X larger */
+}
+#modal-close-btn.icon-button:hover {
+    color: var(--color-text-primary);
+    background-color: var(--color-secondary);
+}
+
+/* Styles for Quick Scan Card dynamic elements on Dashboard */
+#quick-scan-loading p {
+    color: var(--color-text-secondary);
+    font-style: italic;
+}
+
+#quick-scan-error {
+    color: var(--color-error);
+    font-weight: bold;
+    padding: var(--spacing-2);
+    border: 1px dashed var(--color-error);
+    border-radius: var(--border-radius-sm);
+    background-color: rgba(var(--color-error-rgb), 0.1); /* Assuming --color-error-rgb is defined or use a fixed one */
+}
+/* Define --color-error-rgb if not already globally defined */
+:root {
+    --color-error-rgb: 239, 68, 68; /* From --color-error: #ef4444; */
+}
+
+
+#quick-scan-results h4 {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--color-text-primary);
+    margin-bottom: var(--spacing-2);
+}
+
+#quick-scan-results-data { /* The <pre> tag */
+    background-color: var(--color-secondary);
+    padding: var(--spacing-3);
+    border-radius: var(--border-radius-sm);
+    border: 1px solid var(--color-border);
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
+    font-size: 0.85rem;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    max-height: 200px; /* Or as desired */
+    overflow-y: auto;
+    color: var(--color-text-secondary); /* Text color for the pre content */
+}
+
+html[data-theme='light'] #quick-scan-results-data {
+    color: var(--color-text-primary); /* Ensure readability on light theme */
+}
+
+
+#proceed-to-full-scan-btn {
+    margin-top: var(--spacing-4);
+    background-color: var(--color-primary); /* Or use button-secondary if preferred */
+    color: white;
+}
+#proceed-to-full-scan-btn:hover {
+    opacity: 0.9;
+}
+html[data-theme='light'] #proceed-to-full-scan-btn {
+     background-color: var(--color-primary);
+     color: white;
+}
+/* If using button-secondary for proceed: */
+/*
+#proceed-to-full-scan-btn {
+    margin-top: var(--spacing-4);
+    Consider if button-secondary class is already sufficient
+}
+*/

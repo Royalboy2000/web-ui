@@ -5,9 +5,9 @@ from unittest.mock import patch, mock_open
 
 # Add parent directory to sys.path to import app and common_field_names
 import sys
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from server.app import app, parse_auth_content # Import the renamed function
+from app import app, parse_auth_content # Import the renamed function
 import common_field_names
 
 class TestAuthContentParsing(unittest.TestCase): # Renamed class
@@ -112,7 +112,7 @@ class TestCredentialsEndpointSourceLogic(unittest.TestCase):
 
         # Patch parse_auth_content, not parse_auth_file
         # No need to patch AUTH_FILE_PATH as it's removed
-        with patch('server.app.parse_auth_content', return_value=[("file_user1", "file_pass1"), ("file_user2", "file_pass2")]) as mock_parse_content:
+        with patch('app.parse_auth_content', return_value=[("file_user1", "file_pass1"), ("file_user2", "file_pass2")]) as mock_parse_content:
             response = self.app.post('/test_credentials_stream', json=request_data)
             self.assertEqual(response.status_code, 200)
             self.assertTrue(response.is_streamed)
@@ -204,7 +204,7 @@ class TestCredentialsEndpointSourceLogic(unittest.TestCase):
         request_data["password_list"] = []
 
         # parse_auth_content will be called with "malformed:content" and return []
-        with patch('server.app.parse_auth_content', return_value=[]) as mock_parse_content:
+        with patch('app.parse_auth_content', return_value=[]) as mock_parse_content:
             response = self.app.post('/test_credentials_stream', json=request_data)
             self.assertEqual(response.status_code, 400)
 

@@ -206,6 +206,9 @@ CORS(app, resources={
     }
 })
 
+# Set up file upload routes
+setup_file_upload_routes(app)
+
 # Set up the fixed upload endpoint
 setup_fixed_upload_endpoint(app)
 
@@ -917,15 +920,18 @@ def test_credentials_stream():
 
         if auth_file_content:
             parsed_credentials = parse_auth_content(auth_file_content)
-            if not parsed_credentials:
-                return jsonify({"error": "No valid credentials found in the provided file."}), 400
-            source_usernames = [cred[0] for cred in parsed_credentials]
-            source_passwords = [cred[1] for cred in parsed_credentials]
-            credential_source_message = f"Using {len(source_usernames)} credential pairs from uploaded content."
-        else:
+            if parsed_credentials:
+                source_usernames = [cred[0] for cred in parsed_credentials]
+                source_passwords = [cred[1] for cred in parsed_credentials]
+                credential_source_message = f"Using {len(source_usernames)} credential pairs from uploaded content."
+            else:
+                credential_source_message = "Uploaded auth content was empty/invalid. Falling back to lists."
+
+        if not source_usernames: # Fallback if auth content was not provided, empty, or invalid
             source_usernames = username_list_payload
             source_passwords = password_list_payload
-            credential_source_message = f"Using {len(source_usernames)} credential pairs from individual lists."
+            if not credential_source_message: # If message wasn't set by failed auth file parse
+                credential_source_message = f"Using {len(source_usernames)} credential pairs from individual lists."
 
         num_pairs_to_test = min(len(source_usernames), len(source_passwords))
         if num_pairs_to_test == 0:

@@ -561,7 +561,7 @@ window.StrykerState = {
         row.insertCell().textContent = data.attemptNumber;
         row.insertCell().textContent = new Date().toLocaleTimeString();
         row.insertCell().textContent = data.username || 'N/A';
-        row.insertCell().textContent = data.password_actual || 'N/A';
+        row.insertCell().textContent = '********';
 
         const statusCell = row.insertCell();
         statusCell.textContent = data.status ? data.status.toUpperCase() : 'UNKNOWN';
