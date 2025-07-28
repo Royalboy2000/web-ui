@@ -232,6 +232,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (quickScanResultsDiv) quickScanResultsDiv.style.display = 'none';
         quickScanAnalysisData = null;
         try {
+            await new Promise(resolve => setTimeout(resolve, 10000));
             const response = await fetch('/analyze_url', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: url })
             });
