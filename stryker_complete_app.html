@@ -1359,6 +1359,107 @@
                 display: block;
             }
         }
+
+        /* Live Attack Monitoring Styles */
+        .live-attack-grid {
+            display: grid;
+            grid-template-columns: 1fr 350px;
+            gap: 25px;
+            height: calc(100vh - 120px);
+        }
+
+        .live-feed-card {
+            background: linear-gradient(135deg, var(--bg-card) 0%, rgba(255, 255, 255, 0.01) 100%);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
+            padding: 30px;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+
+        .live-feed-header {
+            margin-bottom: 20px;
+        }
+
+        .live-feed-header h3 {
+            font-size: 1.5rem;
+            color: var(--primary-green);
+        }
+
+        .live-feed-console {
+            flex-grow: 1;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 10px;
+            padding: 20px;
+            font-family: 'Fira Code', 'Courier New', monospace;
+            font-size: 0.9rem;
+            overflow-y: auto;
+            color: var(--text-secondary);
+        }
+
+        .live-feed-console::-webkit-scrollbar {
+            width: 8px;
+        }
+        .live-feed-console::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+        }
+        .live-feed-console::-webkit-scrollbar-thumb {
+            background: var(--primary-green);
+            border-radius: 4px;
+        }
+        .live-feed-console::-webkit-scrollbar-thumb:hover {
+            background: var(--primary-green-dark);
+        }
+
+        .log-entry {
+            margin-bottom: 8px;
+            line-height: 1.5;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .log-timestamp { color: var(--text-tertiary); margin-right: 10px; }
+        .log-success { color: var(--success-color); }
+        .log-fail { color: var(--danger-color); }
+        .log-info { color: var(--info-color); }
+        .log-warning { color: var(--warning-color); }
+        .log-hit { font-weight: 700; background: var(--primary-green); color: #000; padding: 2px 5px; border-radius: 3px; }
+
+        .attack-summary-card {
+            background: linear-gradient(135deg, var(--bg-card) 0%, rgba(255, 255, 255, 0.01) 100%);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
+            padding: 30px;
+        }
+
+        .summary-item {
+            margin-bottom: 20px;
+        }
+        .summary-item-label {
+            font-weight: 600;
+            color: var(--text-secondary);
+            margin-bottom: 5px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .summary-item-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--primary-green);
+        }
+        .summary-item-value-small {
+            font-size: 1.2rem;
+            color: var(--text-primary);
+        }
     </style>
 </head>
 <body>
@@ -1563,8 +1664,8 @@
                 <a href="#" class="nav-item" data-page="settings">
                     <i class="fas fa-cog"></i> Settings
                 </a>
-                <a href="#" class="nav-item" data-page="live-monitoring" id="live-monitoring-nav" style="display: none;">
-                    <i class="fas fa-satellite-dish"></i> Live Monitor
+                <a href="#" class="nav-item hidden" data-page="live-monitoring">
+                    <i class="fas fa-satellite-dish"></i> Live Monitoring
                 </a>
             </div>
             <div class="nav-footer">
@@ -2406,106 +2507,43 @@
             <!-- Live Monitoring Page -->
             <div id="live-monitoring" class="page">
                 <div class="dashboard-header">
-                    <h1><i class="fas fa-satellite-dish"></i> Live Attack Monitor</h1>
-                    <p>Monitoring attack on: <strong id="monitor-target-url">N/A</strong></p>
+                    <h1><i class="fas fa-satellite-dish"></i> Live Attack Monitoring</h1>
+                    <p>Observing fake attack on <strong><span id="monitoring-target-url">N/A</span></strong></p>
                 </div>
 
-                <div class="stats-grid">
-                    <div class="stat-card">
-                        <div class="stat-header"><div class="stat-icon" style="background: #17a2b8;"><i class="fas fa-tasks"></i></div></div>
-                        <div class="stat-number" id="monitor-total-attempts">0/10</div>
-                        <div class="stat-label">Attempts</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-header"><div class="stat-icon" style="background: var(--success-color);"><i class="fas fa-bullseye"></i></div></div>
-                        <div class="stat-number" id="monitor-hits">0</div>
-                        <div class="stat-label">Hits</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-header"><div class="stat-icon" style="background: var(--warning-color);"><i class="fas fa-clock"></i></div></div>
-                        <div class="stat-number" id="monitor-elapsed-time">00:00:00</div>
-                        <div class="stat-label">Elapsed Time</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-header"><div class="stat-icon" style="background: var(--danger-color);"><i class="fas fa-stopwatch"></i></div></div>
-                        <div class="stat-number" id="monitor-eta">--:--:--</div>
-                        <div class="stat-label">ETA</div>
-                    </div>
-                </div>
-
-                <div class="activity-card" style="margin-top: 25px;">
-                    <div class="activity-header">
-                        <h3><i class="fas fa-stream"></i> Live Feed</h3>
-                        <div class="filter-controls">
-                            <button class="action-btn-small btn-retry" data-filter="all">All</button>
-                            <button class="action-btn-small btn-retry" data-filter="success">Success</button>
-                            <button class="action-btn-small btn-retry" data-filter="failure">Failure</button>
+                <div class="live-attack-grid">
+                    <div class="live-feed-card">
+                        <div class="live-feed-header">
+                            <h3><i class="fas fa-terminal"></i> Live Feed</h3>
+                        </div>
+                        <div class="live-feed-console" id="liveFeedConsole">
+                            <!-- Log entries will be injected here by JavaScript -->
                         </div>
                     </div>
-                    <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
-                        <table class="history-table" style="width: 100%;">
-                            <thead>
-                                <tr>
-                                    <th>#</th>
-                                    <th>Timestamp</th>
-                                    <th>Username</th>
-                                    <th>Password</th>
-                                    <th>Status</th>
-                                    <th>HTTP Code</th>
-                                    <th>Length</th>
-                                    <th>Details</th>
-                                </tr>
-                            </thead>
-                            <tbody id="live-feed-tbody">
-                                <!-- Rows will be injected by JS -->
-                            </tbody>
-                        </table>
-                        <p id="live-feed-placeholder" style="text-align: center; padding: 20px; display: none;">Awaiting attack initiation...</p>
-                    </div>
-                </div>
-
-                <!-- Details Modal -->
-                <div id="details-modal" class="auth-page" style="display: none; align-items: flex-start; padding-top: 5%;">
-                    <div class="auth-container" style="max-width: 800px;">
-                        <div class="brand-header" style="margin-bottom: 20px;">
-                            <h2 id="modal-title">Attempt Details</h2>
-                            <button onclick="document.getElementById('details-modal').style.display='none'" style="position: absolute; top: 20px; right: 20px; background: none; border: none; font-size: 1.5rem; color: white; cursor: pointer;">&times;</button>
+                    <div class="attack-summary-card">
+                        <div class="summary-item">
+                            <div class="summary-item-label"><i class="fas fa-crosshairs"></i> Status</div>
+                            <div class="summary-item-value" id="attack-status">Initializing...</div>
                         </div>
-                        <div class="modal-body" style="text-align: left;">
-                            <h4 style="color: var(--primary-green);">Request Information:</h4>
-                            <pre id="modal-request-info" style="background: rgba(0,0,0,0.2); padding: 15px; border-radius: 8px; margin-top: 10px;"></pre>
-                            <h4 style="color: var(--primary-green); margin-top: 20px;">Response Information:</h4>
-                            <pre id="modal-response-info" style="background: rgba(0,0,0,0.2); padding: 15px; border-radius: 8px; margin-top: 10px;"></pre>
-                            <h4 style="color: var(--primary-green); margin-top: 20px;">Analysis Summary:</h4>
-                            <pre id="modal-analysis-summary" style="background: rgba(0,0,0,0.2); padding: 15px; border-radius: 8px; margin-top: 10px;"></pre>
+                        <div class="summary-item">
+                            <div class="summary-item-label"><i class="fas fa-bullseye"></i> Hits</div>
+                            <div class="summary-item-value" id="attack-hits">0</div>
+                        </div>
+                        <div class="summary-item">
+                            <div class="summary-item-label"><i class="fas fa-list-ol"></i> Attempts</div>
+                            <div class="summary-item-value" id="attack-attempts">0 / 10</div>
+                        </div>
+                        <div class="summary-item">
+                            <div class="summary-item-label"><i class="fas fa-percentage"></i> Success Rate</div>
+                            <div class="summary-item-value" id="attack-success-rate">0.00%</div>
+                        </div>
+                        <div class="summary-item" style="margin-top: 30px;">
+                            <button class="action-btn btn-secondary" onclick="stopAttack()">
+                                <i class="fas fa-stop-circle"></i> Stop Attack
+                            </button>
                         </div>
                     </div>
                 </div>
-
-                <style>
-                .history-table {
-                    width: 100%;
-                    border-collapse: collapse;
-                    color: var(--text-primary);
-                }
-                .history-table th, .history-table td {
-                    padding: 15px;
-                    text-align: left;
-                    border-bottom: 1px solid var(--border-color);
-                }
-                .history-table th {
-                    font-weight: 600;
-                    color: var(--primary-green);
-                }
-                .history-table tbody tr:last-child td {
-                    border-bottom: none;
-                }
-                .history-table tbody tr:hover {
-                    background-color: var(--bg-card-hover);
-                }
-                .status-success { color: var(--success-color); font-weight: 700; }
-                .status-failure { color: var(--danger-color); font-weight: 700; }
-                </style>
             </div>
         </div>
     </div>
@@ -2514,6 +2552,7 @@
         // Global variables
         let isAuthenticated = false;
         let currentWizardStep = 1;
+        let attackInterval = null;
 
         // Initialize application
         document.addEventListener('DOMContentLoaded', function() {
@@ -2653,28 +2692,19 @@
         }
 
         function showPage(pageId) {
-            const liveMonitoringNav = document.getElementById('live-monitoring-nav');
-
             // Update navigation
             const navItems = document.querySelectorAll('.nav-item');
             navItems.forEach(nav => nav.classList.remove('active'));
 
-            const activeNavLink = document.querySelector(`[data-page="${pageId}"]`);
-            if (activeNavLink) {
-                activeNavLink.classList.add('active');
+            const targetNavLink = document.querySelector(`.nav-item[data-page="${pageId}"]`);
+            if(targetNavLink) {
+                targetNavLink.classList.add('active');
             }
 
             // Show page
             const pages = document.querySelectorAll('.page');
-            pages.forEach(page => {
-                page.style.display = 'none';
-            });
-            document.getElementById(pageId).style.display = 'block';
-
-            // If navigating away from monitor, hide the nav link
-            if (pageId !== 'live-monitoring' && liveMonitoringNav) {
-                liveMonitoringNav.style.display = 'none';
-            }
+            pages.forEach(page => page.classList.remove('active'));
+            document.getElementById(pageId).classList.add('active');
 
             // Initialize page-specific features
             if (pageId === 'dashboard') {
@@ -2901,10 +2931,6 @@
             event.currentTarget.classList.remove('dragover');
         }
 
-        function launchAttack() {
-            alert('Attack launched! This is a demo - no actual attack will be performed.');
-        }
-
         function saveConfiguration() {
             alert('Configuration saved successfully!');
         }
@@ -2944,6 +2970,93 @@
             }
         `;
         document.head.appendChild(style);
+
+        // --- Attack Simulation ---
+        function launchAttack() {
+            const targetUrl = document.getElementById('targetUrl').value || 'demo-site.com';
+            document.getElementById('monitoring-target-url').textContent = targetUrl;
+
+            showPage('live-monitoring');
+
+            const consoleEl = document.getElementById('liveFeedConsole');
+            consoleEl.innerHTML = ''; // Clear previous logs
+
+            let attempts = 0;
+            let hits = 0;
+            const maxAttempts = 10;
+
+            const fakeUsers = ["admin", "root", "user", "test", "guest", "info", "support", "sysadmin", "webmaster", "backup"];
+            const fakePasswords = ["password", "123456", "qwerty", "admin", "12345", "12345678", "football", "1234", "111111", "sunshine"];
+
+            function addLog(message, type = 'info') {
+                const logEntry = document.createElement('div');
+                logEntry.className = 'log-entry';
+                const timestamp = new Date().toLocaleTimeString();
+                logEntry.innerHTML = `<span class="log-timestamp">[${timestamp}]</span> <span class="log-${type}">${message}</span>`;
+                consoleEl.appendChild(logEntry);
+                consoleEl.scrollTop = consoleEl.scrollHeight;
+            }
+
+            function updateSummary() {
+                document.getElementById('attack-hits').textContent = hits;
+                document.getElementById('attack-attempts').textContent = `${attempts} / ${maxAttempts}`;
+                const successRate = maxAttempts > 0 ? (hits / attempts * 100).toFixed(2) : '0.00';
+                document.getElementById('attack-success-rate').textContent = `${successRate}%`;
+            }
+
+            addLog(`Starting fake attack on ${targetUrl}...`, 'info');
+            document.getElementById('attack-status').textContent = 'Running';
+            document.getElementById('attack-status').style.color = 'var(--warning-color)';
+
+            attackInterval = setInterval(() => {
+                if (attempts >= maxAttempts) {
+                    stopAttack(false);
+                    return;
+                }
+
+                attempts++;
+                const user = fakeUsers[attempts - 1];
+                const pass = fakePasswords[Math.floor(Math.random() * fakePasswords.length)];
+
+                const isHit = Math.random() < 0.2; // 20% chance of a "hit"
+
+                if (isHit) {
+                    hits++;
+                    addLog(`[ATTEMPT ${attempts}] SUCCESS - Found credentials: <span class="log-hit">${user}:${pass}</span>`, 'success');
+                } else {
+                    addLog(`[ATTEMPT ${attempts}] FAILED - Trying ${user}:${pass}`, 'fail');
+                }
+
+                updateSummary();
+
+            }, 1500);
+        }
+
+        function stopAttack(manual = true) {
+            clearInterval(attackInterval);
+            attackInterval = null;
+
+            const consoleEl = document.getElementById('liveFeedConsole');
+            function addLog(message, type = 'info') {
+                const logEntry = document.createElement('div');
+                logEntry.className = 'log-entry';
+                const timestamp = new Date().toLocaleTimeString();
+                logEntry.innerHTML = `<span class="log-timestamp">[${timestamp}]</span> <span class="log-${type}">${message}</span>`;
+                consoleEl.appendChild(logEntry);
+                consoleEl.scrollTop = consoleEl.scrollHeight;
+            }
+
+            if (manual) {
+                addLog('Attack stopped manually by user.', 'warning');
+                document.getElementById('attack-status').textContent = 'Stopped';
+                document.getElementById('attack-status').style.color = 'var(--danger-color)';
+            } else {
+                addLog('Attack finished.', 'info');
+                document.getElementById('attack-status').textContent = 'Finished';
+                document.getElementById('attack-status').style.color = 'var(--success-color)';
+            }
+        }
+
     </script>
 </body>
 </html>
