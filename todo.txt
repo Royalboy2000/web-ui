@@ -1,147 +1,16 @@
-STRYKER WEB UI - CRITICAL FIXES TODO LIST
-==========================================
-
-PRIORITY 1: RACE CONDITION FIXES
----------------------------------
-[ ] Fix file upload dialog appearing during attack execution
-    - Issue: Upload dialog shows while attack is running (1184/4984 attempts)
-    - Root cause: JavaScript timing issue with modal/dialog display
-    - Solution: Add proper state management to prevent upload during active attacks
-    - Files to modify: static/script.js, static/new_upload_interface.js
-
-[ ] Implement proper attack state management
-    - Add global attack state variable (IDLE, RUNNING, PAUSED, COMPLETED)
-    - Disable all upload functionality during RUNNING state
-    - Show appropriate status messages during different states
-    - Files to modify: static/script.js
-
-[ ] Fix modal/dialog z-index and timing issues
-    - Ensure upload dialog only appears when appropriate
-    - Add proper modal dismissal when attack starts
-    - Implement proper event listeners for state changes
-    - Files to modify: static/script.js, templates/index.html
-
-PRIORITY 2: FILE UPLOAD INTERFACE FIXES
-----------------------------------------
-[ ] Move file upload to Step 3 (Credentials section)
-    - Currently appears at wrong time during attack
-    - Should be visible in credentials configuration step
-    - Add proper integration with existing credential input methods
-    - Files to modify: templates/index.html, static/script.js
-
-[ ] Implement proper file upload UI integration
-    - Add file upload button/area in credentials section
-    - Show file name and credential count after upload
-    - Provide clear feedback on upload success/failure
-    - Allow switching between manual entry and file upload
-    - Files to modify: templates/index.html, static/script.js
-
-[ ] Fix server-side file upload endpoint integration
-    - Ensure /upload_credentials endpoint is properly connected
-    - Add proper error handling for file upload failures
-    - Implement progress feedback for large file uploads
-    - Files to modify: app.py, static/script.js
-
-PRIORITY 3: USER EXPERIENCE IMPROVEMENTS
------------------------------------------
-[ ] Add proper loading states and feedback
-    - Show upload progress for large files
-    - Display credential parsing status
-    - Add clear success/error messages
-    - Files to modify: static/script.js, templates/index.html
-
-[ ] Implement credential preview functionality
-    - Show first 5-10 credentials after file upload
-    - Display total credential count
-    - Allow user to verify parsing was successful
-    - Files to modify: static/script.js
-
-[ ] Add file format validation
-    - Check file extensions (.txt, .csv, etc.)
-    - Validate file size limits
-    - Provide clear error messages for unsupported formats
-    - Files to modify: static/script.js, app.py
-
-PRIORITY 4: ATTACK EXECUTION IMPROVEMENTS
-------------------------------------------
-[ ] Fix attack progress display race condition
-    - Ensure progress updates don't interfere with upload dialogs
-    - Add proper synchronization between UI components
-    - Files to modify: static/script.js
-
-[ ] Implement proper attack cancellation
-    - Add cancel button that works reliably
-    - Ensure UI returns to proper state after cancellation
-    - Clean up any pending upload dialogs
-    - Files to modify: static/script.js, app.py
-
-[ ] Add attack pause/resume functionality
-    - Allow users to pause long-running attacks
-    - Maintain state during pause
-    - Resume from correct position
-    - Files to modify: static/script.js, app.py
-
-PRIORITY 5: CODE CLEANUP AND OPTIMIZATION
-------------------------------------------
-[ ] Remove duplicate upload interface code
-    - Consolidate multiple upload implementations
-    - Remove unused JavaScript functions
-    - Clean up event listeners
-    - Files to modify: static/script.js, static/new_upload_interface.js
-
-[ ] Optimize large file processing
-    - Improve memory usage for 5000+ credential files
-    - Add streaming file processing
-    - Implement better error recovery
-    - Files to modify: app.py, server_side_upload.py
-
-[ ] Add comprehensive error logging
-    - Log all upload attempts and failures
-    - Add debugging information for race conditions
-    - Implement proper error reporting to user
-    - Files to modify: app.py, static/script.js
-
-TESTING CHECKLIST
-------------------
-[ ] Test file upload in Step 3 (before attack starts)
-[ ] Test attack execution without upload dialog interference
-[ ] Test large file uploads (5000+ credentials)
-[ ] Test attack cancellation and UI state reset
-[ ] Test multiple file uploads in same session
-[ ] Test error handling for corrupted/invalid files
-[ ] Test browser compatibility (Chrome, Firefox, Safari, Edge)
-[ ] Test mobile responsiveness
-
-DEPLOYMENT CHECKLIST
----------------------
-[ ] Update requirements.txt with any new dependencies
-[ ] Test deployment on clean environment
-[ ] Verify all static files are included
-[ ] Test production deployment
-[ ] Update documentation with new features
-
-CRITICAL BUGS TO FIX IMMEDIATELY
----------------------------------
-1. Upload dialog appearing during attack (race condition)
-2. File upload not available in credentials step
-3. Attack progress interfering with upload UI
-4. Missing proper state management
-5. Inconsistent UI behavior during file operations
-
-ESTIMATED EFFORT
-----------------
-Priority 1 fixes: 2-3 hours
-Priority 2 fixes: 3-4 hours  
-Priority 3 fixes: 2-3 hours
-Priority 4 fixes: 2-3 hours
-Priority 5 fixes: 1-2 hours
-Testing: 2-3 hours
-Total: 12-18 hours
-
-NOTES
------
-- Focus on Priority 1 and 2 first - these are critical user experience issues
-- The race condition is the most serious problem affecting usability
-- File upload should be seamlessly integrated into the normal workflow
-- All fixes should maintain backward compatibility with existing features
-
+- Task: Modify `stryker_complete_app.html` to show a fake attack demonstration.
+- Trigger: Clicking the "Launch Attack" button.
+- Action:
+  - DO NOT show an alert.
+  - Show a new "Live Monitoring" page, NOT on the dashboard.
+  - The new page must contain a live feed of the attack.
+- Live Feed Details:
+  - Simulate exactly 10 fake accounts being tested.
+  - The feed must be well-organized with enough information.
+  - Columns should include: #, Timestamp, Username, Password (redacted), Status, HTTP Code, Length, Details button.
+  - Include metric cards for: Total Attempts, Hits, Elapsed Time, ETA.
+  - Include a modal that opens when the "Details" button is clicked, showing more info.
+- Styling:
+  - The new page and components must match the existing advanced UI style of `stryker_complete_app.html`.
+- Bug to fix:
+  - The JavaScript error `TypeError: can't access property "classList", document.querySelector(...) is null` must be fixed by adding a hidden nav link and making the `showPage` function robust.
