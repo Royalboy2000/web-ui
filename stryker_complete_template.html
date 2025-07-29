@@ -2067,41 +2067,120 @@
         }
 
         function launchScan() {
-            if (!targetAnalysis || !credentialFile) {
-                showError('Please complete all steps before launching the scan');
+            // Basic validation
+            if (!targetAnalysis) {
+                showError('Please complete Step 1 (Target Analysis) before launching.');
+                currentStep = 1;
+                updateWizardStep();
+                return;
+            }
+            if (!credentialFile) {
+                showError('Please complete Step 3 (Upload Credentials) before launching.');
+                currentStep = 3;
+                updateWizardStep();
                 return;
             }
             
-            const scanData = {
-                target: targetAnalysis,
-                credentials: credentialFile.content,
-                config: scanConfig,
-                user_id: currentUser.id
-            };
+            // Switch views
+            showSection('live-scan');
             
-            fetch('/api/start-scan', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(scanData)
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    showSuccess(`Scan launched successfully! Scan ID: ${data.scan_id}`);
-                    // Reset wizard and go to dashboard
-                    resetWizard();
-                    showSection('dashboard-content');
-                    loadDashboardData();
-                } else {
-                    showError(data.error || 'Failed to launch scan');
-                }
-            })
-            .catch(error => {
-                console.error('Scan launch error:', error);
-                showError('Failed to launch scan. Please try again.');
-            });
+            // Update the target display in the live view
+            const liveScanTarget = document.getElementById('live-scan-target');
+            if (liveScanTarget && targetAnalysis && targetAnalysis.domain) {
+                liveScanTarget.textContent = targetAnalysis.domain;
+            }
+
+            // Start the simulation
+            startSimulation();
+        }
+
+        let simulationInterval;
+        let elapsedTimeInterval;
+        let currentAttempt = 0;
+        let totalHits = 0;
+        const totalAttempts = 10;
+
+        function stopSimulation(reason) {
+            clearInterval(simulationInterval);
+            clearInterval(elapsedTimeInterval);
+            console.log(`Simulation stopped: ${reason}`);
+            const stopBtn = document.getElementById('stopScanBtn');
+            stopBtn.disabled = true;
+            stopBtn.innerHTML = '<i class="fas fa-check-circle"></i> Scan Finished';
+        }
+
+        function formatTime(seconds) {
+            const h = Math.floor(seconds / 3600).toString().padStart(2, '0');
+            const m = Math.floor((seconds % 3600) / 60).toString().padStart(2, '0');
+            const s = Math.floor(seconds % 60).toString().padStart(2, '0');
+            return `${h}:${m}:${s}`;
+        }
+
+        function addLiveFeedRow() {
+            currentAttempt++;
+            const liveFeedBody = document.getElementById('live-feed-body');
+            const liveAttempts = document.getElementById('live-attempts');
+            const liveHits = document.getElementById('live-hits');
+
+            const timestamp = new Date().toLocaleTimeString();
+            const email = `testuser${currentAttempt}@example.com`;
+            const password = `password${Math.floor(Math.random() * 1000)}`;
+            const isSuccess = Math.random() < 0.2; // 20% success rate
+            const status = isSuccess ? 'SUCCESS' : 'FAILURE';
+
+            if (isSuccess) {
+                totalHits++;
+            }
+
+            const row = document.createElement('tr');
+            row.style.borderBottom = '1px solid rgba(34, 197, 94, 0.1)';
+
+            row.innerHTML = `
+                <td style="padding: 12px 15px;">${currentAttempt}</td>
+                <td style="padding: 12px 15px;">${timestamp}</td>
+                <td style="padding: 12px 15px;">${email}</td>
+                <td style="padding: 12px 15px;">${password}</td>
+                <td style="padding: 12px 15px; color: ${isSuccess ? '#22c55e' : '#ef4444'}; font-weight: 600;">${status}</td>
+            `;
+
+            liveFeedBody.appendChild(row);
+            liveFeedBody.parentElement.scrollTop = liveFeedBody.parentElement.scrollHeight;
+
+            liveAttempts.textContent = `${currentAttempt}/${totalAttempts}`;
+            liveHits.textContent = totalHits;
+
+            if (currentAttempt >= totalAttempts) {
+                stopSimulation('Completed');
+            }
+        }
+
+        function startSimulation() {
+            currentAttempt = 0;
+            totalHits = 0;
+
+            const liveFeedBody = document.getElementById('live-feed-body');
+            const liveAttempts = document.getElementById('live-attempts');
+            const liveHits = document.getElementById('live-hits');
+            const liveElapsedTime = document.getElementById('live-elapsed-time');
+            const stopBtn = document.getElementById('stopScanBtn');
+
+            // Reset UI
+            liveFeedBody.innerHTML = '';
+            liveAttempts.textContent = `0/${totalAttempts}`;
+            liveHits.textContent = '0';
+            liveElapsedTime.textContent = '00:00:00';
+            stopBtn.disabled = false;
+            stopBtn.innerHTML = '<i class="fas fa-stop-circle"></i> Stop Scan';
+            stopBtn.onclick = () => stopSimulation('User stopped');
+
+
+            let seconds = 0;
+            elapsedTimeInterval = setInterval(() => {
+                seconds++;
+                liveElapsedTime.textContent = formatTime(seconds);
+            }, 1000);
+
+            simulationInterval = setInterval(addLiveFeedRow, 1500); // Add a row every 1.5 seconds
         }
 
         function resetWizard() {
