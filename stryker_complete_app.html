@@ -1363,103 +1363,198 @@
         /* Live Attack Monitoring Styles */
         .live-attack-grid {
             display: grid;
-            grid-template-columns: 1fr 350px;
+            grid-template-columns: 1fr 400px;
             gap: 25px;
-            height: calc(100vh - 120px);
+            height: calc(100vh - 220px); /* Adjusted height */
         }
 
-        .live-feed-card {
+        .live-feed-card, .attack-summary-card {
             background: linear-gradient(135deg, var(--bg-card) 0%, rgba(255, 255, 255, 0.01) 100%);
             backdrop-filter: blur(20px);
             border: 1px solid var(--border-color);
             border-radius: 20px;
             padding: 30px;
-            display: flex;
-            flex-direction: column;
-            height: 100%;
+            box-shadow: var(--shadow-medium);
+            transition: all 0.3s ease;
+        }
+
+        .live-feed-card:hover, .attack-summary-card:hover {
+            transform: translateY(-5px);
+            border-color: var(--border-color-hover);
         }
 
         .live-feed-header {
             margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
 
         .live-feed-header h3 {
             font-size: 1.5rem;
             color: var(--primary-green);
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
 
         .live-feed-console {
             flex-grow: 1;
-            background: rgba(0, 0, 0, 0.3);
+            background: rgba(0, 0, 0, 0.4);
             border-radius: 10px;
-            padding: 20px;
+            padding: 15px;
             font-family: 'Fira Code', 'Courier New', monospace;
             font-size: 0.9rem;
             overflow-y: auto;
             color: var(--text-secondary);
+            border: 1px solid rgba(255, 255, 255, 0.1);
         }
 
         .live-feed-console::-webkit-scrollbar {
-            width: 8px;
+            width: 10px;
         }
         .live-feed-console::-webkit-scrollbar-track {
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 4px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 5px;
         }
         .live-feed-console::-webkit-scrollbar-thumb {
             background: var(--primary-green);
-            border-radius: 4px;
+            border-radius: 5px;
+            border: 2px solid transparent;
+            background-clip: content-box;
         }
         .live-feed-console::-webkit-scrollbar-thumb:hover {
             background: var(--primary-green-dark);
         }
 
         .log-entry {
-            margin-bottom: 8px;
-            line-height: 1.5;
-            animation: fadeIn 0.3s ease;
+            background-color: rgba(255,255,255,0.05);
+            border-left: 4px solid var(--info-color);
+            padding: 15px;
+            margin-bottom: 12px;
+            border-radius: 8px;
+            animation: slideInUp 0.5s ease-out;
+            transition: all 0.3s ease;
         }
 
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
+        .log-entry:hover {
+            transform: scale(1.02);
+            background-color: rgba(255,255,255,0.08);
         }
 
-        .log-timestamp { color: var(--text-tertiary); margin-right: 10px; }
-        .log-success { color: var(--success-color); }
-        .log-fail { color: var(--danger-color); }
-        .log-info { color: var(--info-color); }
-        .log-warning { color: var(--warning-color); }
-        .log-hit { font-weight: 700; background: var(--primary-green); color: #000; padding: 2px 5px; border-radius: 3px; }
+        .log-entry.log-success { border-left-color: var(--success-color); }
+        .log-entry.log-fail { border-left-color: var(--danger-color); }
+        .log-entry.log-warning { border-left-color: var(--warning-color); }
+        .log-entry.false-positive { border-left-color: var(--warning-color); background-color: rgba(255, 193, 7, 0.1); }
+        .log-entry.false-negative { border-left-color: var(--info-color); background-color: rgba(23, 162, 184, 0.1); }
+
+
+        .log-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .log-timestamp {
+            font-size: 0.8rem;
+            color: var(--text-tertiary);
+        }
+        .log-status {
+            font-weight: 700;
+            font-size: 1rem;
+        }
+        .log-status.log-success { color: var(--success-color); }
+        .log-status.log-fail { color: var(--danger-color); }
+        .log-status.log-info { color: var(--info-color); }
+        .log-status.log-warning { color: var(--warning-color); }
+
+        .log-credentials {
+            font-weight: 700;
+            background: var(--primary-green);
+            color: #000;
+            padding: 3px 8px;
+            border-radius: 5px;
+            display: inline-block;
+        }
+
+        .log-details {
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid var(--border-color);
+            font-size: 0.85rem;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 8px;
+        }
+        .log-detail-item {
+            color: var(--text-secondary);
+        }
+        .log-detail-item strong {
+            color: var(--text-primary);
+            font-weight: 600;
+        }
+
+        .log-actions {
+            margin-top: 12px;
+            display: flex;
+            gap: 10px;
+        }
+        .log-action-btn {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding: 5px 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 0.8rem;
+        }
+        .log-action-btn:hover {
+            background: var(--primary-green);
+            color: #000;
+            border-color: var(--primary-green);
+        }
+
+
+        @keyframes slideInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
 
         .attack-summary-card {
-            background: linear-gradient(135deg, var(--bg-card) 0%, rgba(255, 255, 255, 0.01) 100%);
-            backdrop-filter: blur(20px);
-            border: 1px solid var(--border-color);
-            border-radius: 20px;
-            padding: 30px;
+            display: flex;
+            flex-direction: column;
         }
 
         .summary-item {
-            margin-bottom: 20px;
+            margin-bottom: 25px;
         }
         .summary-item-label {
             font-weight: 600;
             color: var(--text-secondary);
-            margin-bottom: 5px;
+            margin-bottom: 8px;
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 10px;
+            font-size: 1rem;
         }
         .summary-item-value {
-            font-size: 1.5rem;
-            font-weight: 700;
+            font-size: 2rem;
+            font-weight: 800;
             color: var(--primary-green);
+            text-shadow: 0 0 10px rgba(0, 255, 136, 0.3);
         }
-        .summary-item-value-small {
-            font-size: 1.2rem;
-            color: var(--text-primary);
-        }
+
+        .status-running { color: var(--warning-color); }
+        .status-finished { color: var(--success-color); }
+        .status-stopped { color: var(--danger-color); }
+
     </style>
 </head>
 <body>
@@ -2515,6 +2610,9 @@
                     <div class="live-feed-card">
                         <div class="live-feed-header">
                             <h3><i class="fas fa-terminal"></i> Live Feed</h3>
+                            <button class="action-btn btn-secondary" onclick="stopAttack(true)">
+                                <i class="fas fa-stop-circle"></i> Stop Attack
+                            </button>
                         </div>
                         <div class="live-feed-console" id="liveFeedConsole">
                             <!-- Log entries will be injected here by JavaScript -->
@@ -2537,11 +2635,6 @@
                             <div class="summary-item-label"><i class="fas fa-percentage"></i> Success Rate</div>
                             <div class="summary-item-value" id="attack-success-rate">0.00%</div>
                         </div>
-                        <div class="summary-item" style="margin-top: 30px;">
-                            <button class="action-btn btn-secondary" onclick="stopAttack()">
-                                <i class="fas fa-stop-circle"></i> Stop Attack
-                            </button>
-                        </div>
                     </div>
                 </div>
             </div>
@@ -2553,6 +2646,7 @@
         let isAuthenticated = false;
         let currentWizardStep = 1;
         let attackInterval = null;
+        let logCounter = 0;
 
         // Initialize application
         document.addEventListener('DOMContentLoaded', function() {
@@ -2980,6 +3074,7 @@
 
             const consoleEl = document.getElementById('liveFeedConsole');
             consoleEl.innerHTML = ''; // Clear previous logs
+            logCounter = 0;
 
             let attempts = 0;
             let hits = 0;
@@ -2987,12 +3082,47 @@
 
             const fakeUsers = ["admin", "root", "user", "test", "guest", "info", "support", "sysadmin", "webmaster", "backup"];
             const fakePasswords = ["password", "123456", "qwerty", "admin", "12345", "12345678", "football", "1234", "111111", "sunshine"];
+            const positiveIndicators = ["Welcome, admin", "Login successful", "Dashboard", "Redirecting..."];
 
-            function addLog(message, type = 'info') {
+            function addLog(data) {
+                logCounter++;
+                const logId = `log-${logCounter}`;
                 const logEntry = document.createElement('div');
-                logEntry.className = 'log-entry';
+                logEntry.id = logId;
+                logEntry.className = `log-entry log-${data.type}`;
                 const timestamp = new Date().toLocaleTimeString();
-                logEntry.innerHTML = `<span class="log-timestamp">[${timestamp}]</span> <span class="log-${type}">${message}</span>`;
+
+                let actionButtons = '';
+                if (data.type === 'success') {
+                    actionButtons = `
+                        <button class="log-action-btn" onclick="markAsFalsePositive('${logId}')">
+                            <i class="fas fa-flag"></i> Mark as False Positive
+                        </button>`;
+                } else if (data.type === 'fail') {
+                     actionButtons = `
+                        <button class="log-action-btn" onclick="markAsFalseNegative('${logId}')">
+                            <i class="fas fa-check-circle"></i> Mark as False Negative
+                        </button>`;
+                }
+
+                logEntry.innerHTML = `
+                    <div class="log-header">
+                        <span class="log-status log-${data.type}">${data.status.toUpperCase()}</span>
+                        <span class="log-timestamp">${timestamp}</span>
+                    </div>
+                    <div>
+                        Attempting with <span class="log-credentials">${data.user}:${data.pass}</span>
+                    </div>
+                    <div class="log-details">
+                        <div class="log-detail-item"><strong>URL:</strong> ${data.finalUrl}</div>
+                        <div class="log-detail-item"><strong>Content-Length:</strong> ${data.contentLength}</div>
+                        <div class="log-detail-item"><strong>Analysis:</strong> ${data.analysis}</div>
+                        ${data.indicator ? `<div class="log-detail-item"><strong>Indicator:</strong> "${data.indicator}"</div>` : ''}
+                    </div>
+                    <div class="log-actions">
+                        ${actionButtons}
+                    </div>
+                `;
                 consoleEl.appendChild(logEntry);
                 consoleEl.scrollTop = consoleEl.scrollHeight;
             }
@@ -3000,13 +3130,15 @@
             function updateSummary() {
                 document.getElementById('attack-hits').textContent = hits;
                 document.getElementById('attack-attempts').textContent = `${attempts} / ${maxAttempts}`;
-                const successRate = maxAttempts > 0 ? (hits / attempts * 100).toFixed(2) : '0.00';
+                const successRate = attempts > 0 ? (hits / attempts * 100).toFixed(2) : '0.00';
                 document.getElementById('attack-success-rate').textContent = `${successRate}%`;
             }
 
-            addLog(`Starting fake attack on ${targetUrl}...`, 'info');
-            document.getElementById('attack-status').textContent = 'Running';
-            document.getElementById('attack-status').style.color = 'var(--warning-color)';
+            addLog({ type: 'info', status: 'info', user: 'system', pass: 'N/A', finalUrl: 'N/A', contentLength: 'N/A', analysis: `Starting fake attack on ${targetUrl}...` });
+            const statusEl = document.getElementById('attack-status');
+            statusEl.textContent = 'Running';
+            statusEl.className = 'summary-item-value status-running';
+
 
             attackInterval = setInterval(() => {
                 if (attempts >= maxAttempts) {
@@ -3020,40 +3152,62 @@
 
                 const isHit = Math.random() < 0.2; // 20% chance of a "hit"
 
+                let logData;
                 if (isHit) {
                     hits++;
-                    addLog(`[ATTEMPT ${attempts}] SUCCESS - Found credentials: <span class="log-hit">${user}:${pass}</span>`, 'success');
+                    logData = {
+                        type: 'success',
+                        status: 'HIT',
+                        user: user,
+                        pass: pass,
+                        finalUrl: `${targetUrl}/dashboard`,
+                        contentLength: Math.floor(Math.random() * 1000) + 2000,
+                        analysis: 'Positive indicator found in response.',
+                        indicator: positiveIndicators[Math.floor(Math.random() * positiveIndicators.length)]
+                    };
                 } else {
-                    addLog(`[ATTEMPT ${attempts}] FAILED - Trying ${user}:${pass}`, 'fail');
+                    logData = {
+                        type: 'fail',
+                        status: 'FAIL',
+                        user: user,
+                        pass: pass,
+                        finalUrl: targetUrl,
+                        contentLength: Math.floor(Math.random() * 500) + 100,
+                        analysis: 'No positive indicators found.'
+                    };
                 }
 
+                addLog(logData);
                 updateSummary();
 
             }, 1500);
+        }
+
+        function markAsFalsePositive(logId) {
+            const logEntry = document.getElementById(logId);
+            logEntry.classList.add('false-positive');
+            logEntry.querySelector('.log-status').textContent = 'FALSE POSITIVE';
+            logEntry.querySelector('.log-status').className = 'log-status log-warning';
+        }
+
+        function markAsFalseNegative(logId) {
+            const logEntry = document.getElementById(logId);
+            logEntry.classList.add('false-negative');
+            logEntry.querySelector('.log-status').textContent = 'FALSE NEGATIVE (HIT)';
+            logEntry.querySelector('.log-status').className = 'log-status log-info';
         }
 
         function stopAttack(manual = true) {
             clearInterval(attackInterval);
             attackInterval = null;
 
-            const consoleEl = document.getElementById('liveFeedConsole');
-            function addLog(message, type = 'info') {
-                const logEntry = document.createElement('div');
-                logEntry.className = 'log-entry';
-                const timestamp = new Date().toLocaleTimeString();
-                logEntry.innerHTML = `<span class="log-timestamp">[${timestamp}]</span> <span class="log-${type}">${message}</span>`;
-                consoleEl.appendChild(logEntry);
-                consoleEl.scrollTop = consoleEl.scrollHeight;
-            }
-
+            const statusEl = document.getElementById('attack-status');
             if (manual) {
-                addLog('Attack stopped manually by user.', 'warning');
-                document.getElementById('attack-status').textContent = 'Stopped';
-                document.getElementById('attack-status').style.color = 'var(--danger-color)';
+                statusEl.textContent = 'Stopped';
+                statusEl.className = 'summary-item-value status-stopped';
             } else {
-                addLog('Attack finished.', 'info');
-                document.getElementById('attack-status').textContent = 'Finished';
-                document.getElementById('attack-status').style.color = 'var(--success-color)';
+                statusEl.textContent = 'Finished';
+                statusEl.className = 'summary-item-value status-finished';
             }
         }
 
