@@ -1857,17 +1857,6 @@
                         </div>
                     </div>
                 </div>
-
-                <!-- Live Feed Section -->
-                <div id="live-attack-feed" class="activity-card" style="display: none; margin-top: 25px;">
-                    <div class="activity-header">
-                        <h3><i class="fas fa-stream"></i> Live Attack Feed for <span id="live-feed-target"></span></h3>
-                        <div id="live-feed-progress" style="color: var(--primary-green); font-weight: 600;"></div>
-                    </div>
-                    <div id="live-feed-entries" style="max-height: 400px; overflow-y: auto; padding-right: 15px;">
-                        <!-- Log entries will be injected here by JavaScript -->
-                    </div>
-                </div>
             </div>
 
             <!-- New Scan Page -->
@@ -2410,6 +2399,111 @@
                     </button>
                 </div>
             </div>
+
+            <!-- Live Monitoring Page -->
+            <div id="live-monitoring" class="page">
+                <div class="dashboard-header">
+                    <h1><i class="fas fa-satellite-dish"></i> Live Attack Monitor</h1>
+                    <p>Monitoring attack on: <strong id="monitor-target-url">N/A</strong></p>
+                </div>
+
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-header"><div class="stat-icon" style="background: #17a2b8;"><i class="fas fa-tasks"></i></div></div>
+                        <div class="stat-number" id="monitor-total-attempts">0/10</div>
+                        <div class="stat-label">Attempts</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-header"><div class="stat-icon" style="background: var(--success-color);"><i class="fas fa-bullseye"></i></div></div>
+                        <div class="stat-number" id="monitor-hits">0</div>
+                        <div class="stat-label">Hits</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-header"><div class="stat-icon" style="background: var(--warning-color);"><i class="fas fa-clock"></i></div></div>
+                        <div class="stat-number" id="monitor-elapsed-time">00:00:00</div>
+                        <div class="stat-label">Elapsed Time</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-header"><div class="stat-icon" style="background: var(--danger-color);"><i class="fas fa-stopwatch"></i></div></div>
+                        <div class="stat-number" id="monitor-eta">--:--:--</div>
+                        <div class="stat-label">ETA</div>
+                    </div>
+                </div>
+
+                <div class="activity-card" style="margin-top: 25px;">
+                    <div class="activity-header">
+                        <h3><i class="fas fa-stream"></i> Live Feed</h3>
+                        <div class="filter-controls">
+                            <button class="action-btn-small btn-retry" data-filter="all">All</button>
+                            <button class="action-btn-small btn-retry" data-filter="success">Success</button>
+                            <button class="action-btn-small btn-retry" data-filter="failure">Failure</button>
+                        </div>
+                    </div>
+                    <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
+                        <table class="history-table" style="width: 100%;">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Timestamp</th>
+                                    <th>Username</th>
+                                    <th>Password</th>
+                                    <th>Status</th>
+                                    <th>HTTP Code</th>
+                                    <th>Length</th>
+                                    <th>Details</th>
+                                </tr>
+                            </thead>
+                            <tbody id="live-feed-tbody">
+                                <!-- Rows will be injected by JS -->
+                            </tbody>
+                        </table>
+                        <p id="live-feed-placeholder" style="text-align: center; padding: 20px; display: none;">Awaiting attack initiation...</p>
+                    </div>
+                </div>
+
+                <!-- Details Modal -->
+                <div id="details-modal" class="auth-page" style="display: none; align-items: flex-start; padding-top: 5%;">
+                    <div class="auth-container" style="max-width: 800px;">
+                        <div class="brand-header" style="margin-bottom: 20px;">
+                            <h2 id="modal-title">Attempt Details</h2>
+                            <button onclick="document.getElementById('details-modal').style.display='none'" style="position: absolute; top: 20px; right: 20px; background: none; border: none; font-size: 1.5rem; color: white; cursor: pointer;">&times;</button>
+                        </div>
+                        <div class="modal-body" style="text-align: left;">
+                            <h4 style="color: var(--primary-green);">Request Information:</h4>
+                            <pre id="modal-request-info" style="background: rgba(0,0,0,0.2); padding: 15px; border-radius: 8px; margin-top: 10px;"></pre>
+                            <h4 style="color: var(--primary-green); margin-top: 20px;">Response Information:</h4>
+                            <pre id="modal-response-info" style="background: rgba(0,0,0,0.2); padding: 15px; border-radius: 8px; margin-top: 10px;"></pre>
+                            <h4 style="color: var(--primary-green); margin-top: 20px;">Analysis Summary:</h4>
+                            <pre id="modal-analysis-summary" style="background: rgba(0,0,0,0.2); padding: 15px; border-radius: 8px; margin-top: 10px;"></pre>
+                        </div>
+                    </div>
+                </div>
+
+                <style>
+                .history-table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    color: var(--text-primary);
+                }
+                .history-table th, .history-table td {
+                    padding: 15px;
+                    text-align: left;
+                    border-bottom: 1px solid var(--border-color);
+                }
+                .history-table th {
+                    font-weight: 600;
+                    color: var(--primary-green);
+                }
+                .history-table tbody tr:last-child td {
+                    border-bottom: none;
+                }
+                .history-table tbody tr:hover {
+                    background-color: var(--bg-card-hover);
+                }
+                .status-success { color: var(--success-color); font-weight: 700; }
+                .status-failure { color: var(--danger-color); font-weight: 700; }
+                </style>
+            </div>
         </div>
     </div>
 
@@ -2791,68 +2885,128 @@
             event.currentTarget.classList.remove('dragover');
         }
 
+        let logEntries = []; // Global for modal access
+
+        function showDetails(logIndex) {
+            const entry = logEntries[logIndex];
+            if (!entry) return;
+
+            document.getElementById('modal-title').textContent = `Attempt Details (#${entry.id})`;
+
+            const requestText = `Target URL: ${document.getElementById('monitor-target-url').textContent}\n\n` +
+                              `Username: ${entry.username}\n` +
+                              `Password: ********`;
+            document.getElementById('modal-request-info').textContent = requestText;
+
+            const responseText = `Status Code: ${entry.httpCode}\n` +
+                               `Content Length: ${entry.length} bytes`;
+            document.getElementById('modal-response-info').textContent = responseText;
+
+            const analysisText = `Outcome: ${entry.status}\n\n` +
+                               `This was a simulated attack attempt. No real request was sent.`;
+            document.getElementById('modal-analysis-summary').textContent = analysisText;
+
+            document.getElementById('details-modal').style.display = 'flex';
+        }
+
         function launchAttack() {
-            // 1. Get target URL from the form
             const targetUrl = document.getElementById('targetUrl').value;
             if (!targetUrl) {
                 alert("Please enter a target URL in Step 1.");
                 return;
             }
 
-            // 2. Switch to dashboard view
-            showPage('dashboard');
+            // Switch to the live monitoring page
+            showPage('live-monitoring');
+            document.getElementById('monitor-target-url').textContent = targetUrl;
 
-            // 3. Prepare the live feed section
-            const liveFeedSection = document.getElementById('live-attack-feed');
-            const liveFeedTarget = document.getElementById('live-feed-target');
-            const liveFeedEntries = document.getElementById('live-feed-entries');
-            const liveFeedProgress = document.getElementById('live-feed-progress');
+            // Reset UI
+            const liveFeedBody = document.getElementById('live-feed-tbody');
+            const placeholder = document.getElementById('live-feed-placeholder');
+            liveFeedBody.innerHTML = '';
+            placeholder.style.display = 'block';
+            placeholder.textContent = 'Initiating attack...';
 
-            if (liveFeedTarget) liveFeedTarget.textContent = targetUrl;
-            if (liveFeedEntries) liveFeedEntries.innerHTML = ''; // Clear previous entries
-            if (liveFeedSection) liveFeedSection.style.display = 'block';
-            if (liveFeedProgress) liveFeedProgress.textContent = 'Starting...';
-
-            // 4. Simulate the attack
+            logEntries = []; // Reset global log entries
+            let hits = 0;
             let attemptCounter = 0;
             const totalAttempts = 10;
+            const attackStartTime = new Date();
+
+            document.getElementById('monitor-hits').textContent = '0';
+            document.getElementById('monitor-total-attempts').textContent = `0/${totalAttempts}`;
+
+            const elapsedTimeInterval = setInterval(() => {
+                const now = new Date();
+                const elapsedMs = now - attackStartTime;
+                const seconds = Math.floor((elapsedMs / 1000) % 60);
+                const minutes = Math.floor((elapsedMs / (1000 * 60)) % 60);
+                const hours = Math.floor(elapsedMs / (1000 * 60 * 60));
+                document.getElementById('monitor-elapsed-time').textContent = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+
+                if (attemptCounter > 0 && attemptCounter < totalAttempts) {
+                    const timePerAttemptMs = elapsedMs / attemptCounter;
+                    const remainingAttempts = totalAttempts - attemptCounter;
+                    const etaMs = remainingAttempts * timePerAttemptMs;
+                    const etaSeconds = Math.floor((etaMs / 1000) % 60);
+                    const etaMinutes = Math.floor((etaMs / (1000 * 60)) % 60);
+                    const etaHours = Math.floor(etaMs / (1000 * 60 * 60));
+                    document.getElementById('monitor-eta').textContent = `${String(etaHours).padStart(2, '0')}:${String(etaMinutes).padStart(2, '0')}:${String(etaSeconds).padStart(2, '0')}`;
+                } else if (attemptCounter === totalAttempts) {
+                    document.getElementById('monitor-eta').textContent = 'Done';
+                }
+            }, 1000);
 
             function generateFakeAttempt() {
                 if (attemptCounter >= totalAttempts) {
-                    if (liveFeedProgress) liveFeedProgress.textContent = 'Completed';
+                    clearInterval(elapsedTimeInterval);
+                    placeholder.textContent = 'Attack finished.';
                     return;
                 }
 
-                attemptCounter++;
-                if (liveFeedProgress) liveFeedProgress.textContent = `Attempt ${attemptCounter} of ${totalAttempts}`;
+                if (attemptCounter === 0) {
+                    placeholder.style.display = 'none';
+                }
 
-                const username = `user${attemptCounter}@example.com`;
-                const password = 'password' + Math.floor(Math.random() * 1000);
+                attemptCounter++;
+
                 const isSuccess = Math.random() > 0.8; // 20% success rate
                 const status = isSuccess ? 'SUCCESS' : 'FAILURE';
-                const statusClass = isSuccess ? 'high-success' : 'low-success';
-                const statusColor = isSuccess ? 'var(--success-color)' : 'var(--danger-color)';
-                const timestamp = new Date().toLocaleString();
+                if (isSuccess) hits++;
 
-                const entryHtml = `
-                    <div class="recent-scan-item ${statusClass}">
-                        <div class="scan-info">
-                            <h4>${username}:${password}</h4>
-                            <div class="scan-meta">${timestamp}</div>
-                        </div>
-                        <div class="scan-results">
-                            <div class="hit-count" style="color: ${statusColor};">${status}</div>
-                        </div>
-                    </div>
+                const entry = {
+                    id: attemptCounter,
+                    timestamp: new Date().toLocaleString(),
+                    username: `user${attemptCounter}`,
+                    password: 'password' + Math.floor(Math.random() * 1000),
+                    status: status,
+                    httpCode: isSuccess ? 200 : 401,
+                    length: Math.floor(Math.random() * (5000 - 1000 + 1) + 1000),
+                };
+                logEntries.push(entry);
+
+                const row = `
+                    <tr data-status="${status.toLowerCase()}">
+                        <td>${entry.id}</td>
+                        <td>${entry.timestamp}</td>
+                        <td>${entry.username}</td>
+                        <td>********</td>
+                        <td><span class="status-${status.toLowerCase()}">${status}</span></td>
+                        <td>${entry.httpCode}</td>
+                        <td>${entry.length}</td>
+                        <td><button class="action-btn-small btn-retry" onclick="showDetails(${logEntries.length - 1})">View</button></td>
+                    </tr>
                 `;
+                liveFeedBody.insertAdjacentHTML('afterbegin', row);
 
-                if (liveFeedEntries) liveFeedEntries.insertAdjacentHTML('afterbegin', entryHtml); // Prepend new entries
+                // Update metrics
+                document.getElementById('monitor-hits').textContent = hits;
+                document.getElementById('monitor-total-attempts').textContent = `${attemptCounter}/${totalAttempts}`;
 
-                setTimeout(generateFakeAttempt, 1000 + Math.random() * 1500); // Random delay between 1s and 2.5s
+                setTimeout(generateFakeAttempt, 1000 + Math.random() * 1500);
             }
 
-            // Start the simulation
-            setTimeout(generateFakeAttempt, 500);
+            setTimeout(generateFakeAttempt, 1000);
         }
 
         function saveConfiguration() {
