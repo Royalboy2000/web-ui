@@ -1365,7 +1365,7 @@
             display: grid;
             grid-template-columns: 1fr 400px;
             gap: 25px;
-            height: calc(100vh - 220px); /* Adjusted height */
+            height: calc(100vh - 160px); /* Adjusted height */
         }
 
         .live-feed-card, .attack-summary-card {
@@ -1554,6 +1554,89 @@
         .status-running { color: var(--warning-color); }
         .status-finished { color: var(--success-color); }
         .status-stopped { color: var(--danger-color); }
+
+        /* Modal Styles */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(10px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        .modal-overlay:not(.hidden) {
+            opacity: 1;
+        }
+
+        .modal-content {
+            background: var(--bg-secondary);
+            border-radius: 20px;
+            border: 1px solid var(--border-color);
+            width: 90%;
+            max-width: 800px;
+            max-height: 90vh;
+            display: flex;
+            flex-direction: column;
+            box-shadow: var(--shadow-heavy);
+            transform: scale(0.95);
+            transition: transform 0.3s ease;
+        }
+        .modal-overlay:not(.hidden) .modal-content {
+            transform: scale(1);
+        }
+
+        .modal-header {
+            padding: 20px 30px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .modal-header h2 {
+            color: var(--primary-green);
+        }
+        .modal-close {
+            background: none;
+            border: none;
+            color: var(--text-primary);
+            font-size: 2rem;
+            cursor: pointer;
+            transition: color 0.2s ease;
+        }
+        .modal-close:hover {
+            color: var(--primary-green);
+        }
+
+        .modal-body {
+            padding: 30px;
+            overflow-y: auto;
+            font-family: 'Fira Code', monospace;
+        }
+
+        .modal-section {
+            margin-bottom: 25px;
+        }
+        .modal-section h3 {
+            color: var(--primary-green);
+            margin-bottom: 15px;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 10px;
+        }
+        .modal-pre {
+            background: rgba(0,0,0,0.3);
+            padding: 15px;
+            border-radius: 8px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            color: var(--text-secondary);
+        }
 
     </style>
 </head>
@@ -2641,6 +2724,18 @@
         </div>
     </div>
 
+    <div id="detailsModal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Request/Response Details</h2>
+                <button class="modal-close" onclick="closeModal()">&times;</button>
+            </div>
+            <div class="modal-body" id="modalBody">
+                <!-- Details will be injected here -->
+            </div>
+        </div>
+    </div>
+
     <script>
         // Global variables
         let isAuthenticated = false;
@@ -3090,6 +3185,7 @@
                 const logEntry = document.createElement('div');
                 logEntry.id = logId;
                 logEntry.className = `log-entry log-${data.type}`;
+                logEntry.dataset.log = JSON.stringify(data);
                 const timestamp = new Date().toLocaleTimeString();
 
                 let actionButtons = '';
@@ -3118,9 +3214,13 @@
                         <div class="log-detail-item"><strong>Content-Length:</strong> ${data.contentLength}</div>
                         <div class="log-detail-item"><strong>Analysis:</strong> ${data.analysis}</div>
                         ${data.indicator ? `<div class="log-detail-item"><strong>Indicator:</strong> "${data.indicator}"</div>` : ''}
+                        <div class="log-detail-item"><strong>Status Code:</strong> ${data.statusCode}</div>
                     </div>
                     <div class="log-actions">
                         ${actionButtons}
+                        <button class="log-action-btn" onclick="viewDetails('${logId}')">
+                            <i class="fas fa-eye"></i> View
+                        </button>
                     </div>
                 `;
                 consoleEl.appendChild(logEntry);
@@ -3163,7 +3263,8 @@
                         finalUrl: `${targetUrl}/dashboard`,
                         contentLength: Math.floor(Math.random() * 1000) + 2000,
                         analysis: 'Positive indicator found in response.',
-                        indicator: positiveIndicators[Math.floor(Math.random() * positiveIndicators.length)]
+                        indicator: positiveIndicators[Math.floor(Math.random() * positiveIndicators.length)],
+                        statusCode: 200
                     };
                 } else {
                     logData = {
@@ -3173,7 +3274,8 @@
                         pass: pass,
                         finalUrl: targetUrl,
                         contentLength: Math.floor(Math.random() * 500) + 100,
-                        analysis: 'No positive indicators found.'
+                        analysis: 'No positive indicators found.',
+                        statusCode: 401
                     };
                 }
 
@@ -3209,6 +3311,39 @@
                 statusEl.textContent = 'Finished';
                 statusEl.className = 'summary-item-value status-finished';
             }
+        }
+
+        function viewDetails(logId) {
+            const logEntry = document.getElementById(logId);
+            const logData = JSON.parse(logEntry.dataset.log);
+            const modalBody = document.getElementById('modalBody');
+
+            const requestHeaders = `POST /login HTTP/1.1\nHost: ${logData.finalUrl.split('/')[2]}\nUser-Agent: Stryker-Bot\nContent-Type: application/x-www-form-urlencoded`;
+            const requestBody = `username=${logData.user}&password=${logData.pass}`;
+
+            const responseHeaders = `HTTP/1.1 ${logData.statusCode}\nContent-Type: text/html\nContent-Length: ${logData.contentLength}`;
+            const responseBody = logData.type === 'success' ? `<html>...<body>Welcome, ${logData.user}</body></html>` : `<html>...<body>Invalid credentials</body></html>`;
+
+            modalBody.innerHTML = `
+                <div class="modal-section">
+                    <h3><i class="fas fa-arrow-down"></i> Request</h3>
+                    <pre class="modal-pre">${requestHeaders}\n\n${requestBody}</pre>
+                </div>
+                <div class="modal-section">
+                    <h3><i class="fas fa-arrow-up"></i> Response</h3>
+                    <pre class="modal-pre">${responseHeaders}\n\n${responseBody}</pre>
+                </div>
+                <div class="modal-section">
+                    <h3><i class="fas fa-search"></i> Analysis</h3>
+                    <pre class="modal-pre"><strong>Analysis:</strong> ${logData.analysis}\n${logData.indicator ? `<strong>Indicator:</strong> "${logData.indicator}"` : ''}</pre>
+                </div>
+            `;
+
+            document.getElementById('detailsModal').classList.remove('hidden');
+        }
+
+        function closeModal() {
+            document.getElementById('detailsModal').classList.add('hidden');
         }
 
     </script>
