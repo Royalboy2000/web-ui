@@ -583,6 +583,10 @@ window.StrykerState = {
         liveFeedPlaceholder.style.display = 'none';
 
         const template = document.getElementById('log-template');
+        if (!template) {
+            console.error('Could not find #log-template element.');
+            return;
+        }
         const row = template.cloneNode(true);
         row.removeAttribute('id');
         row.style.display = '';
@@ -705,7 +709,7 @@ window.StrykerState = {
         })
         .then(response => {
             if (!response.ok) throw new Error(`HTTP error! status: ${response.status} on SSE setup.`);
-            const reader = response.body.getReader();
+            const reader = response.body..getReader();
             const decoder = new TextDecoder();
             function processText({ done, value }) {
                 if (done) {
