@@ -524,18 +524,20 @@ window.StrykerState = {
             if (!response.ok) throw new Error(data.error || `HTTP error! status: ${response.status}`);
 
             // Update the local logEntries array based on the backend's response
-            data.updated_ids.forEach(id => {
-                const logEntry = logEntries.find(e => e.attempt_number === id);
-                if (logEntry) {
-                    if (data.flag_type) {
-                        logEntry.flag = data.flag_type;
-                    } else {
-                        delete logEntry.flag; // The flag was toggled off
+            data.updated_ids.forEach((id, index) => {
+                setTimeout(() => {
+                    const logEntry = logEntries.find(e => e.attempt_number === id);
+                    if (logEntry) {
+                        if (data.flag_type) {
+                            logEntry.flag = data.flag_type;
+                        } else {
+                            delete logEntry.flag; // The flag was toggled off
+                        }
+                        refreshTableFlags(); // Redraw the table with the new flag status
                     }
-                }
+                }, index * 100); // 100ms delay between each flag update
             });
 
-            refreshTableFlags(); // Redraw the table with the new flag statuses
             if (logDetailsModal) logDetailsModal.style.display = 'none'; // Close modal after flagging
 
         } catch (error) {
