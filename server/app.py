@@ -835,7 +835,7 @@ def execute_login_attempt(username, password, target_post_url, username_field_na
                 "response_url": response.url,
                 "status_code": response.status_code,
                 "content_length": len(response.text),
-                "response_body": response.text,
+                "response_body": json.dumps(response.text),
                 "analysis": analysis
             }
             app.logger.info(f"Login attempt result: {result}")

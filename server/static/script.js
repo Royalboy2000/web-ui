@@ -472,8 +472,13 @@ window.StrykerState = {
         }
         if (modalRequestInfo) modalRequestInfo.textContent = requestText.trim();
         let responseText = `Status Code: ${entry.status_code || 'N/A'}\nResponse URL (Final): ${entry.response_url || 'N/A'}\nContent Length: ${entry.content_length === -1 ? 'N/A (Error reading body)' : (entry.content_length === undefined ? 'N/A' : entry.content_length)}\n\nResponse Body (first 1000 chars):\n`;
-        responseText += (entry.response_body ? String(entry.response_body).substring(0, 1000) : 'N/A');
-        if (entry.response_body && String(entry.response_body).length > 1000) responseText += "\n... (truncated)";
+        try {
+            const parsedBody = entry.response_body ? JSON.parse(entry.response_body) : 'N/A';
+            responseText += String(parsedBody).substring(0, 1000);
+            if (String(parsedBody).length > 1000) responseText += "\n... (truncated)";
+        } catch (e) {
+            responseText += entry.response_body; // Fallback for non-JSON bodies
+        }
         if (modalResponseInfo) modalResponseInfo.textContent = responseText.trim();
         let analysisText = `Score: ${entry.analysis ? entry.analysis.score : 'N/A'}\n\nPositive Indicators:\n` + (entry.analysis && entry.analysis.positive_indicators && entry.analysis.positive_indicators.length > 0 ? "  - " + entry.analysis.positive_indicators.join('\n  - ') : '  N/A') + "\n\nNegative Indicators:\n" + (entry.analysis && entry.analysis.negative_indicators && entry.analysis.negative_indicators.length > 0 ? "  - " + entry.analysis.negative_indicators.join('\n  - ') : '  N/A');
         if (modalAnalysisSummary) modalAnalysisSummary.textContent = analysisText.trim();
@@ -509,7 +514,7 @@ window.StrykerState = {
         const sourceEntry = logEntries[currentLogIndex];
         if (!sourceEntry || typeof sourceEntry.response_body === 'undefined') return;
 
-        const sourceResponseBody = sourceEntry.response_body;
+        const sourceResponseBody = sourceEntry.response_body; // This is a JSON string
 
         logEntries.forEach(entry => {
             if (entry.response_body === sourceResponseBody) {
