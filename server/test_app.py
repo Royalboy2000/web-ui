@@ -7,7 +7,7 @@ from unittest.mock import patch, mock_open
 import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from app import app, parse_auth_content # Import the renamed function
+from app import app, parse_auth_content, scan_results_store
 import common_field_names
 
 class TestAuthContentParsing(unittest.TestCase): # Renamed class
@@ -207,6 +207,59 @@ class TestCredentialsEndpointSourceLogic(unittest.TestCase):
         with patch('app.parse_auth_content', return_value=[]) as mock_parse_content:
             response = self.app.post('/test_credentials_stream', json=request_data)
             self.assertEqual(response.status_code, 400)
+
+class TestFlagRequestEndpoint(unittest.TestCase):
+    def setUp(self):
+        self.client = app.test_client()
+        app.testing = True
+        scan_results_store.clear()
+
+    def tearDown(self):
+        scan_results_store.clear()
+
+    def test_flag_request_toggles_on(self):
+        scan_results_store.update({
+            1: {"attempt_number": 1, "response_body": json.dumps("<html><body>Login Success</body></html>")}
+        })
+        response = self.client.post('/flag_request/1', json={"flag_type": "false-positive"})
+        self.assertEqual(response.status_code, 200)
+        data = response.get_json()
+        self.assertEqual(data['flag_type'], 'false-positive')
+        self.assertIn(1, data['updated_ids'])
+        self.assertEqual(scan_results_store[1]['flag'], 'false-positive')
+
+    def test_flag_request_toggles_off(self):
+        scan_results_store.update({
+            1: {"attempt_number": 1, "response_body": json.dumps("<html><body>Login Failed</body></html>"), "flag": "false-positive"},
+            2: {"attempt_number": 2, "response_body": json.dumps("<html><body>Login Failed</body></html>")}
+        })
+        response = self.client.post('/flag_request/1', json={"flag_type": "false-positive"})
+        self.assertEqual(response.status_code, 200)
+        data = response.get_json()
+        self.assertIsNone(data['flag_type'])
+        self.assertIn(1, data['updated_ids'])
+        self.assertIn(2, data['updated_ids'])
+        self.assertNotIn('flag', scan_results_store[1])
+        self.assertNotIn('flag', scan_results_store[2])
+
+    def test_flag_request_updates_all_with_same_response(self):
+        scan_results_store.update({
+            1: {"attempt_number": 1, "response_body": json.dumps("<html><body>Login Failed</body></html>")},
+            2: {"attempt_number": 2, "response_body": json.dumps("<html><body>Login Success</body></html>")},
+            3: {"attempt_number": 3, "response_body": json.dumps("<html><body>Login Failed</body></html>")}
+        })
+        response = self.client.post('/flag_request/1', json={"flag_type": "false-positive"})
+        self.assertEqual(response.status_code, 200)
+        data = response.get_json()
+        self.assertEqual(data['flag_type'], 'false-positive')
+        self.assertIn(1, data['updated_ids'])
+        self.assertIn(3, data['updated_ids'])
+        self.assertEqual(scan_results_store[1]['flag'], 'false-positive')
+        self.assertEqual(scan_results_store[3]['flag'], 'false-positive')
+
+    def test_flag_request_invalid_attempt_id(self):
+        response = self.client.post('/flag_request/99', json={"flag_type": "false-positive"})
+        self.assertEqual(response.status_code, 400)
 
 
 if __name__ == '__main__':

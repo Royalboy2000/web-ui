@@ -508,27 +508,40 @@ window.StrykerState = {
         });
     }
 
-    function flagResponses(flagType) {
+    async function flagResponses(flagType) {
         if (currentLogIndex === null) return;
 
-        const sourceEntry = logEntries[currentLogIndex];
-        if (!sourceEntry || typeof sourceEntry.response_body === 'undefined') return;
+        const entry = logEntries[currentLogIndex];
+        if (!entry || typeof entry.attempt_number === 'undefined') return;
 
-        const sourceResponseBody = sourceEntry.response_body; // This is a JSON string
+        try {
+            const response = await fetch(`/flag_request/${entry.attempt_number}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ flag_type: flagType })
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || `HTTP error! status: ${response.status}`);
 
-        logEntries.forEach(entry => {
-            if (entry.response_body === sourceResponseBody) {
-                // Toggle off if clicking the same flag type again
-                if (entry.flag === flagType) {
-                    delete entry.flag;
-                } else {
-                    entry.flag = flagType;
+            // Update the local logEntries array based on the backend's response
+            data.updated_ids.forEach(id => {
+                const logEntry = logEntries.find(e => e.attempt_number === id);
+                if (logEntry) {
+                    if (data.flag_type) {
+                        logEntry.flag = data.flag_type;
+                    } else {
+                        delete logEntry.flag; // The flag was toggled off
+                    }
                 }
-            }
-        });
+            });
 
-        refreshTableFlags();
-        if (logDetailsModal) logDetailsModal.style.display = 'none'; // Close modal after flagging
+            refreshTableFlags(); // Redraw the table with the new flag statuses
+            if (logDetailsModal) logDetailsModal.style.display = 'none'; // Close modal after flagging
+
+        } catch (error) {
+            console.error('Error flagging request:', error);
+            alert(`Error flagging request: ${error.message}`);
+        }
     }
 
     const modalFlagFpBtn = document.getElementById('modal-flag-fp-btn');

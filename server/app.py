@@ -194,6 +194,7 @@ def process_credentials_in_batches(source_usernames, source_passwords, batch_siz
         yield batch_usernames, batch_passwords, i, end_idx, num_pairs
 
 app = Flask(__name__, static_folder='static', template_folder='templates')
+scan_results_store = {}
 
 # Add CORS support to fix browser security issues
 from flask_cors import CORS
@@ -868,6 +869,7 @@ def test_credentials_stream():
         app.logger.debug(f"Request JSON payload summary: {log_payload_summary}")
 
     try:
+        scan_results_store.clear()
         data = request.get_json()
         required_fields = ["target_post_url", "username_field_name", "password_field_name", "form_method"]
         if not data or not all(field in data for field in required_fields):
@@ -1005,6 +1007,8 @@ def test_credentials_stream():
                         try:
                             result = future.result()
                             processed_count += 1
+                            result['attempt_number'] = processed_count
+                            scan_results_store[processed_count] = result
 
                             # Add progress information
                             result["progress"] = {
@@ -1044,6 +1048,41 @@ def test_credentials_stream():
     except Exception as e:
         app.logger.error(f"Error in /test_credentials_stream before streaming: {str(e)}", exc_info=True)
         return jsonify({"error": f"An unexpected server error occurred before streaming could start."}), 500
+
+@app.route('/flag_request/<int:attempt_id>', methods=['POST'])
+def flag_request(attempt_id):
+    data = request.get_json()
+    flag_type = data.get('flag_type')
+
+    if not flag_type or attempt_id not in scan_results_store:
+        return jsonify({"error": "Invalid request"}), 400
+
+    source_entry = scan_results_store[attempt_id]
+    source_response_body = source_entry.get('response_body')
+
+    updated_ids = []
+    flag_value_to_set = flag_type
+
+    # Determine if we are toggling the flag off
+    if source_entry.get('flag') == flag_type:
+        flag_value_to_set = None # Unset the flag
+
+    for entry in scan_results_store.values():
+        if entry.get('response_body') == source_response_body:
+            current_attempt_id = entry.get('attempt_number')
+            if flag_value_to_set is None:
+                if 'flag' in entry:
+                    del entry['flag']
+            else:
+                entry['flag'] = flag_value_to_set
+
+            if current_attempt_id:
+                updated_ids.append(current_attempt_id)
+
+    return jsonify({
+        "updated_ids": updated_ids,
+        "flag_type": flag_value_to_set # Will be null if toggled off
+    })
 
 if __name__ == '__main__':
     # Removed argparse logic for --auth-file
