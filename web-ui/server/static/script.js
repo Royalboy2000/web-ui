@@ -387,6 +387,7 @@ window.StrykerState = {
     const logFilterButtons = document.querySelectorAll('.log-filter-controls .button');
     const liveFeedTbody = document.getElementById('live-feed-tbody');
     const liveFeedPlaceholder = document.getElementById('live-feed-placeholder');
+    const logTemplate = document.getElementById('log-template');
 
     if (modalCloseBtn) {
         modalCloseBtn.addEventListener('click', () => { if (logDetailsModal) logDetailsModal.style.display = 'none'; });
@@ -582,12 +583,11 @@ window.StrykerState = {
         if (!liveFeedTbody || !liveFeedPlaceholder) return;
         liveFeedPlaceholder.style.display = 'none';
 
-        const template = document.getElementById('log-template');
-        if (!template) {
+        if (!logTemplate) {
             console.error('Could not find #log-template element.');
             return;
         }
-        const row = template.cloneNode(true);
+        const row = logTemplate.cloneNode(true);
         row.removeAttribute('id');
         row.style.display = '';
 
