@@ -217,129 +217,41 @@ csrf_cache = TTLCache(maxsize=100, ttl=300)
 request_queue = []
 queue_lock = threading.Lock()
 # Removed global variable AUTH_FILE_PATH
+from enhanced_credential_parser import parse_auth_content_enhanced
 
-def parse_auth_content(file_content_string):
+def find_input_by_heuristics(soup, inputs, keywords):
     """
-    Enhanced credential parser that handles multiple file formats including:
-    - Standard email:password format
-    - Username:password format
-    - Malformed entries with extra colons
-    - Entries with embedded URLs or domains
-    - Mixed format files
+    Finds the best input field from a list based on a set of heuristics.
+
+    Args:
+        soup: BeautifulSoup object of the page.
+        inputs: List of input elements (BeautifulSoup tags) to search through.
+        keywords: A list of strings to match against (e.g., COMMON_USERNAME_FIELDS).
+
+    Returns:
+        The best matching input element tag, or None if no good match is found.
     """
-    import re
+    for inp in inputs:
+        # 1. Check name, id, and placeholder attributes
+        for attr in ['name', 'id', 'placeholder', 'aria-label']:
+            attr_val = inp.get(attr)
+            if attr_val:
+                for keyword in keywords:
+                    if keyword.lower() in attr_val.lower():
+                        app.logger.info(f"Found input via attribute '{attr}': {attr_val}")
+                        return inp
 
-    credentials = []
-    if not file_content_string:
-        app.logger.warning("Auth content string is empty or not provided.")
-        return credentials
+        # 2. Check associated <label> text
+        input_id = inp.get('id')
+        if input_id:
+            label = soup.find('label', {'for': input_id})
+            if label and label.string:
+                for keyword in keywords:
+                    if keyword.lower() in label.string.lower():
+                        app.logger.info(f"Found input via <label for='{input_id}'>: {label.string}")
+                        return inp
 
-    # Email regex pattern for better detection
-    email_pattern = re.compile(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b')
-
-    lines = file_content_string.splitlines()
-    for i, line in enumerate(lines):
-        line = line.strip()
-        if not line or line.startswith('#'):  # Skip empty lines and comments
-            continue
-
-        try:
-            # First, try to parse as URL with credentials
-            parsed_url = urlparse(line)
-            if parsed_url.username and parsed_url.password:
-                credentials.append((parsed_url.username, parsed_url.password))
-                continue
-        except Exception:
-            pass
-
-        # Enhanced parsing for various formats
-        username, password = extract_credentials_enhanced(line, email_pattern)
-
-        if username and password:
-            credentials.append((username, password))
-        else:
-            app.logger.warning(f"Auth content, line {i+1}: Could not extract valid credentials from: '{line[:100]}...'")
-
-    app.logger.info(f"Successfully parsed {len(credentials)} credential pairs from provided content string.")
-    return credentials
-
-def extract_credentials_enhanced(line, email_pattern):
-    """
-    Enhanced credential extraction that handles various formats
-    """
-    import re
-
-    # Method 1: Standard colon separation
-    if ':' in line:
-        parts = line.split(':')
-
-        # Handle simple case: exactly 2 parts
-        if len(parts) == 2:
-            username, password = parts[0].strip(), parts[1].strip()
-            if is_valid_credential_pair(username, password, email_pattern):
-                return username, password
-
-        # Handle complex case: multiple colons
-        elif len(parts) > 2:
-            # Strategy 1: Last part as password, second-to-last as username
-            password = parts[-1].strip()
-            username = parts[-2].strip()
-            if is_valid_credential_pair(username, password, email_pattern):
-                return username, password
-
-            # Strategy 2: Find email in any part, use last part as password
-            for part in parts[:-1]:
-                if email_pattern.match(part.strip()):
-                    username = part.strip()
-                    password = parts[-1].strip()
-                    if is_valid_credential_pair(username, password, email_pattern):
-                        return username, password
-
-            # Strategy 3: First part as username, last as password
-            username = parts[0].strip()
-            password = parts[-1].strip()
-            if is_valid_credential_pair(username, password, email_pattern):
-                return username, password
-
-    # Method 2: Extract email and assume rest is password
-    email_match = email_pattern.search(line)
-    if email_match:
-        email = email_match.group()
-        # Remove email from line and use remainder as password
-        remaining = line.replace(email, '').strip()
-        # Remove common separators
-        remaining = re.sub(r'^[:\s]+|[:\s]+$', '', remaining)
-        if remaining and len(remaining) > 2:  # Reasonable password length
-            return email, remaining
-
-    return None, None
-
-def is_valid_credential_pair(username, password, email_pattern):
-    """
-    Validates if a username/password pair is reasonable
-    """
-    import re
-
-    if not username or not password:
-        return False
-
-    # Username should be reasonable length
-    if len(username) < 3 or len(username) > 100:
-        return False
-
-    # Password should be reasonable length
-    if len(password) < 1 or len(password) > 200:
-        return False
-
-    # Username should be email or reasonable username
-    if email_pattern.match(username):
-        return True
-
-    # Or reasonable username pattern (alphanumeric with some special chars)
-    if re.match(r'^[a-zA-Z0-9._@-]+$', username):
-        return True
-
-    return False
+    return None
 
 @app.route('/')
 def serve_index():
@@ -368,68 +280,50 @@ def analyze_url():
         response.raise_for_status()
         soup = BeautifulSoup(response.text, 'html.parser')
 
-        password_input_field = None
-        all_password_inputs = soup.find_all('input', {'type': 'password'})
+        # --- Enhanced Field Detection Logic ---
 
+        # Find password field first, as it's the most reliable anchor
+        all_password_inputs = soup.find_all('input', {'type': 'password'})
         if not all_password_inputs:
             return jsonify({"error": "No password input field found on the page."}), 404
 
-        if len(all_password_inputs) == 1:
-            password_input_field = all_password_inputs[0]
-        else:
-            for p_input in all_password_inputs:
-                p_name = p_input.get('name', '').lower()
-                p_id = p_input.get('id', '').lower()
-                for common_p_name in common_field_names.COMMON_PASSWORD_FIELDS:
-                    if common_p_name.lower() == p_name or common_p_name.lower() == p_id:
-                        password_input_field = p_input
-                        app.logger.info(f"Multiple password fields found. Selected '{p_name or p_id}' based on common names.")
-                        break
-                if password_input_field:
-                    break
-            if not password_input_field:
-                password_input_field = all_password_inputs[0]
-                app.logger.info("Multiple password fields found. No common name match, selected the first one.")
+        password_input_field = find_input_by_heuristics(soup, all_password_inputs, common_field_names.COMMON_PASSWORD_FIELDS)
+        if not password_input_field:
+            password_input_field = all_password_inputs[0] # Fallback to the first one found
+            app.logger.info("Could not identify password field by heuristics, falling back to the first one.")
 
         login_form = password_input_field.find_parent('form')
         if not login_form:
             return jsonify({"error": "Password field found, but it's not within a form."}), 404
 
         password_field_name = password_input_field.get('name') or password_input_field.get('id') or "Could not auto-detect"
-        username_field_name = None
-        text_inputs = login_form.find_all('input', {'type': ['text', 'email', 'tel', 'number']})
 
-        found_username_input = None
-        for name_candidate in common_field_names.COMMON_USERNAME_FIELDS:
-            for inp in text_inputs:
-                if inp == password_input_field: continue
-                input_name_attr = inp.get('name')
-                input_id_attr = inp.get('id')
-                if (input_name_attr and name_candidate.lower() == input_name_attr.lower()) or \
-                   (input_id_attr and name_candidate.lower() == input_id_attr.lower()):
-                    found_username_input = inp
-                    break
-            if found_username_input:
-                break
+        # Find username field
+        text_inputs = login_form.find_all('input', {'type': ['text', 'email', 'tel', 'number', 'url']})
+        # Exclude the password field from the list of candidates
+        text_inputs = [inp for inp in text_inputs if inp != password_input_field]
 
+        found_username_input = find_input_by_heuristics(soup, text_inputs, common_field_names.COMMON_USERNAME_FIELDS)
+
+        # If heuristics fail, use proximity as a fallback
         if not found_username_input:
-            app.logger.info("No common username field name matched. Trying proximity heuristic.")
+            app.logger.info("No username field found by heuristics. Trying proximity heuristic.")
             potential_username_fields = []
             for inp in text_inputs:
-                if inp == password_input_field: continue
+                # A simple check: is the input before the password input in the document?
                 if hasattr(inp, 'sourceline') and hasattr(password_input_field, 'sourceline') and inp.sourceline is not None and password_input_field.sourceline is not None:
                     if inp.sourceline < password_input_field.sourceline:
                         potential_username_fields.append(inp)
-                else:
+                else: # Fallback if sourceline is not available
                     potential_username_fields.append(inp)
+
             if potential_username_fields:
-                found_username_input = potential_username_fields[-1] if hasattr(password_input_field, 'sourceline') and password_input_field.sourceline is not None else potential_username_fields[0]
+                # The one closest to (and before) the password field is a good guess
+                found_username_input = potential_username_fields[-1] if potential_username_fields else text_inputs[0]
 
+        username_field_name = "Could not auto-detect"
         if found_username_input:
-            username_field_name = found_username_input.get('name') or found_username_input.get('id')
-
-        if not username_field_name:
-             username_field_name = "Could not auto-detect"
+            username_field_name = found_username_input.get('name') or found_username_input.get('id') or "Could not auto-detect"
         app.logger.info(f"Detected username field: '{username_field_name}'")
 
         action_url = login_form.get('action', '')
@@ -919,7 +813,7 @@ def test_credentials_stream():
         credential_source_message = ""
 
         if auth_file_content:
-            parsed_credentials = parse_auth_content(auth_file_content)
+            parsed_credentials = parse_auth_content_enhanced(auth_file_content)
             if not parsed_credentials:
                 return jsonify({"error": "No valid credentials found in the provided file."}), 400
             source_usernames = [cred[0] for cred in parsed_credentials]
