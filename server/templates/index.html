@@ -399,6 +399,7 @@
                                         <th>Status</th>
                                         <th>HTTP Code</th>
                                         <th>Length</th>
+                                        <th>Flag</th>
                                         <th>Details</th>
                                     </tr>
                                 </thead>
@@ -428,6 +429,10 @@
                         <pre id="modal-response-info"></pre>
                         <h4>Analysis Summary:</h4>
                         <pre id="modal-analysis-summary"></pre>
+                    </div>
+                    <div class="modal-footer" style="padding: var(--spacing-4); text-align: right; border-top: 1px solid var(--color-border);">
+                        <button id="modal-flag-fp-btn" class="button button-secondary">Mark as False Positive</button>
+                        <button id="modal-flag-fn-btn" class="button button-secondary">Mark as False Negative</button>
                     </div>
                 </div>
             </div>

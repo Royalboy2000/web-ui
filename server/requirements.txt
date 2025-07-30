@@ -3,4 +3,5 @@ requests>=2.25
 BeautifulSoup4>=4.9
 python-dotenv>=0.19 # For managing environment variables if needed later
 cachetools>=4.2
-Flask-Cors>=4.0.0
+flask_cors
+flask_cors

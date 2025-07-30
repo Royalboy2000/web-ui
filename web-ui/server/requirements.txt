@@ -1,5 +1,0 @@
-Flask>=2.0
-requests>=2.25
-BeautifulSoup4>=4.9
-python-dotenv>=0.19 # For managing environment variables if needed later
-cachetools>=4.2

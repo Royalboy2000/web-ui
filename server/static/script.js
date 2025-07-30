@@ -378,6 +378,7 @@ window.StrykerState = {
     let elapsedTimeInterval;
     let logEntries = [];
     let currentLogFilter = 'all';
+    let currentLogIndex = null;
 
     const logDetailsModal = document.getElementById('log-details-modal');
     const modalCloseBtn = document.getElementById('modal-close-btn');
@@ -436,6 +437,7 @@ window.StrykerState = {
     });
 
     function showLogDetails(logIndex) {
+        currentLogIndex = logIndex;
         const entry = logEntries[logIndex];
         if (!entry || !logDetailsModal) return;
 
@@ -476,6 +478,62 @@ window.StrykerState = {
         let analysisText = `Score: ${entry.analysis ? entry.analysis.score : 'N/A'}\n\nPositive Indicators:\n` + (entry.analysis && entry.analysis.positive_indicators && entry.analysis.positive_indicators.length > 0 ? "  - " + entry.analysis.positive_indicators.join('\n  - ') : '  N/A') + "\n\nNegative Indicators:\n" + (entry.analysis && entry.analysis.negative_indicators && entry.analysis.negative_indicators.length > 0 ? "  - " + entry.analysis.negative_indicators.join('\n  - ') : '  N/A');
         if (modalAnalysisSummary) modalAnalysisSummary.textContent = analysisText.trim();
         logDetailsModal.style.display = 'flex';
+    }
+
+    function refreshTableFlags() {
+        if (!liveFeedTbody) return;
+        const rows = liveFeedTbody.querySelectorAll('tr');
+        rows.forEach(row => {
+            const logIndex = parseInt(row.dataset.logIndex, 10);
+            if (!isNaN(logIndex) && logEntries[logIndex]) {
+                const entry = logEntries[logIndex];
+                const flagCell = row.cells[7]; // The "Flag" column
+                if (flagCell) {
+                    if (entry.flag === 'false-positive') {
+                        flagCell.textContent = 'FP';
+                        flagCell.style.color = 'var(--color-warning)';
+                    } else if (entry.flag === 'false-negative') {
+                        flagCell.textContent = 'FN';
+                        flagCell.style.color = 'var(--color-success)';
+                    } else {
+                        flagCell.textContent = '';
+                    }
+                }
+            }
+        });
+    }
+
+    function flagResponses(flagType) {
+        if (currentLogIndex === null) return;
+
+        const sourceEntry = logEntries[currentLogIndex];
+        if (!sourceEntry || typeof sourceEntry.response_body === 'undefined') return;
+
+        const sourceResponseBody = sourceEntry.response_body;
+
+        logEntries.forEach(entry => {
+            if (entry.response_body === sourceResponseBody) {
+                // Toggle off if clicking the same flag type again
+                if (entry.flag === flagType) {
+                    delete entry.flag;
+                } else {
+                    entry.flag = flagType;
+                }
+            }
+        });
+
+        refreshTableFlags();
+        if (logDetailsModal) logDetailsModal.style.display = 'none'; // Close modal after flagging
+    }
+
+    const modalFlagFpBtn = document.getElementById('modal-flag-fp-btn');
+    const modalFlagFnBtn = document.getElementById('modal-flag-fn-btn');
+
+    if (modalFlagFpBtn) {
+        modalFlagFpBtn.addEventListener('click', () => flagResponses('false-positive'));
+    }
+    if (modalFlagFnBtn) {
+        modalFlagFnBtn.addEventListener('click', () => flagResponses('false-negative'));
     }
 
     function resetAttackMetrics() {
@@ -573,6 +631,8 @@ window.StrykerState = {
 
         row.insertCell().textContent = data.status_code || 'N/A';
         row.insertCell().textContent = data.content_length === -1 ? 'N/A' : (data.content_length === undefined ? 'N/A' : data.content_length);
+
+        row.insertCell().textContent = ''; // New cell for flag
 
         const detailsButton = document.createElement('button');
         detailsButton.className = 'button button-secondary button-sm';
