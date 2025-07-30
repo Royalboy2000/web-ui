@@ -206,9 +206,6 @@ CORS(app, resources={
     }
 })
 
-# Set up file upload routes
-setup_file_upload_routes(app)
-
 # Set up the fixed upload endpoint
 setup_fixed_upload_endpoint(app)
 
