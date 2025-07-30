@@ -1,27 +1,23 @@
-# Stryker - Advanced Security Suite
+# Web UI Features
 
-This document provides an overview of the backend functions and the template related to the "Start Attack" button in the Stryker application.
+This document explains the features of the Stryker Web UI.
 
-## Backend Functions
+## Live Feed and Result Flagging
 
-The following functions in `server/app.py` are involved in the process of launching a credential testing attack:
+As login attempts are made during an attack, the results are streamed to the "Live Feed" table in real-time. Each row in this table represents a single login attempt.
 
-### `parse_auth_content(file_content_string)`
+### Action Buttons
 
-This function parses a string containing credentials (e.g., from an uploaded file). It can handle various formats, including `username:password`, `email:password`, and URLs with embedded credentials (e.g., `http://user:password@example.com:8080`). It returns a list of credential tuples.
+For each result, there are three action buttons:
 
-### `discover_heuristics(...)`
+*   **View**: Click this button to see a modal with detailed information about the request and response for that specific attempt.
+*   **False Positive**: Click this button if a result is incorrectly marked as a "success". This will re-classify the result as a "False Positive".
+*   **False Negative**: Click this button if a result is incorrectly marked as a "failure". This will re-classify the result as a "False Negative".
 
-This function is used to automatically discover heuristics for determining the success or failure of a login attempt. It works by making a baseline request to the login page and then a request with invalid credentials. By comparing the two responses, it can identify patterns that indicate a successful or failed login.
+### Automatic Group Flagging
 
-### `execute_login_attempt(...)`
+When you click "False Positive" or "False Negative" on a result, the application will automatically find all other results in the table that have the *exact same response body* and apply the same flag to them. This allows you to quickly classify large groups of similar results with a single click.
 
-This function executes a single login attempt. It takes the username, password, and other relevant information as input. It then makes a request to the login page with the provided credentials and analyzes the response to determine if the login was successful. The function returns a dictionary containing the result of the login attempt, including the status, details, and an analysis summary.
+### Filtering
 
-### `test_credentials_stream()`
-
-This is the main endpoint for launching a credential testing attack. It receives the target URL, credential lists, and other configuration options from the frontend. It then uses a thread pool to execute multiple login attempts in parallel. The results of each attempt are streamed back to the frontend in real-time.
-
-## Template
-
-The `server/templates/index.html` file contains the HTML code for the user interface. The "Start Attack" button is located in the "Step 4: Launch & Monitor" section. When the user clicks this button, the `handleLaunchAttack` function in `server/static/script.js` is called. This function gathers all the necessary information from the UI and sends it to the `/test_credentials_stream` endpoint to start the attack. The results of the attack are then displayed in the "Live Feed" table.
+You can use the filter buttons above the table ("All", "Success", "Failure", etc.) to see the results you have flagged. For example, after flagging results, you can click the "False Positive" filter to see all the results you have classified as such.
