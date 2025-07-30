@@ -403,6 +403,20 @@
                                     </tr>
                                 </thead>
                                 <tbody id="live-feed-tbody">
+                                    <tr id="log-template" style="display: none;">
+                                        <td class="log-attempt-number"></td>
+                                        <td class="log-timestamp"></td>
+                                        <td class="log-username"></td>
+                                        <td class="log-password">********</td>
+                                        <td class="log-status"></td>
+                                        <td class="log-http-code"></td>
+                                        <td class="log-length"></td>
+                                        <td class="log-details">
+                                            <button class="button button-secondary button-sm view-btn">View</button>
+                                            <button class="button button-secondary button-sm false-positive-btn" style="margin-left: 4px;">False Positive</button>
+                                            <button class="button button-secondary button-sm false-negative-btn" style="margin-left: 4px;">False Negative</button>
+                                        </td>
+                                    </tr>
                                     <!-- Log rows will be appended here by JS -->
                                 </tbody>
                             </table>

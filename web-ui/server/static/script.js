@@ -582,48 +582,34 @@ window.StrykerState = {
         if (!liveFeedTbody || !liveFeedPlaceholder) return;
         liveFeedPlaceholder.style.display = 'none';
 
-        const row = liveFeedTbody.insertRow();
-        row.dataset.status = data.status ? data.status.toLowerCase() : 'unknown';
-        const currentIndex = logEntries.length - 1; // Capture current index for this specific entry
+        const template = document.getElementById('log-template');
+        const row = template.cloneNode(true);
+        row.removeAttribute('id');
+        row.style.display = '';
+
+        const currentIndex = logEntries.length - 1;
         row.dataset.logIndex = currentIndex;
+        row.dataset.status = data.status ? data.status.toLowerCase().replace(/ /g, '_') : 'unknown';
 
+        row.querySelector('.log-attempt-number').textContent = data.attemptNumber;
+        row.querySelector('.log-timestamp').textContent = new Date().toLocaleTimeString();
+        row.querySelector('.log-username').textContent = data.username || 'N/A';
 
-        row.insertCell().textContent = data.attemptNumber;
-        row.insertCell().textContent = new Date().toLocaleTimeString();
-        row.insertCell().textContent = data.username || 'N/A';
-        row.insertCell().textContent = '********';
-
-        const statusCell = row.insertCell();
+        const statusCell = row.querySelector('.log-status');
         statusCell.textContent = data.status ? data.status.toUpperCase() : 'UNKNOWN';
-        statusCell.className = `status-${data.status ? data.status.toLowerCase() : 'unknown'}`;
+        statusCell.className = `log-status status-${data.status ? data.status.toLowerCase().replace(/ /g, '_') : 'unknown'}`;
         if (data.status === '2fa_required') {
             statusCell.style.color = 'orange';
         }
 
-        row.insertCell().textContent = data.status_code || 'N/A';
-        row.insertCell().textContent = data.content_length === -1 ? 'N/A' : (data.content_length === undefined ? 'N/A' : data.content_length);
+        row.querySelector('.log-http-code').textContent = data.status_code || 'N/A';
+        row.querySelector('.log-length').textContent = data.content_length === -1 ? 'N/A' : (data.content_length === undefined ? 'N/A' : data.content_length);
 
-        const detailsCell = row.insertCell();
+        row.querySelector('.view-btn').onclick = () => showLogDetails(currentIndex);
+        row.querySelector('.false-positive-btn').onclick = () => flagSimilarRequests(currentIndex, 'False Positive');
+        row.querySelector('.false-negative-btn').onclick = () => flagSimilarRequests(currentIndex, 'False Negative');
 
-        const viewButton = document.createElement('button');
-        viewButton.className = 'button button-secondary button-sm';
-        viewButton.textContent = 'View';
-        viewButton.onclick = () => showLogDetails(currentIndex);
-        detailsCell.appendChild(viewButton);
-
-        const falsePositiveButton = document.createElement('button');
-        falsePositiveButton.className = 'button button-secondary button-sm';
-        falsePositiveButton.textContent = 'False Positive';
-        falsePositiveButton.style.marginLeft = '4px';
-        falsePositiveButton.onclick = () => flagSimilarRequests(currentIndex, 'False Positive');
-        detailsCell.appendChild(falsePositiveButton);
-
-        const falseNegativeButton = document.createElement('button');
-        falseNegativeButton.className = 'button button-secondary button-sm';
-        falseNegativeButton.textContent = 'False Negative';
-        falseNegativeButton.style.marginLeft = '4px';
-        falseNegativeButton.onclick = () => flagSimilarRequests(currentIndex, 'False Negative');
-        detailsCell.appendChild(falseNegativeButton);
+        liveFeedTbody.appendChild(row);
 
         applyLogFilter();
 
