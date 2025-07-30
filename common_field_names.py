@@ -1,45 +1,62 @@
 COMMON_USERNAME_FIELDS = [
-    # Standard & Common
+    # Standard & Common (English)
     "username", "email", "user", "userid", "user_id", "login", "log", "login_id",
     "user_name", "email_address", "user_email", "emailaddress", "e-mail",
     "txt_username", "txt_email", "txt_user", "inputEmail", "inputUsername",
-    "username_or_email", "user_login", "login_username", "login_email",
+    "username_or_email", "user_login", "login_username", "login_email", "logon",
+    "auth_key", "login_name", "field-login-login",
+
+    # International (Spanish, French, German, Dutch, Italian, Portuguese, Russian)
+    "usuario", "nombre_de_usuario", "correo", # Spanish
+    "identifiant", "nom_d_utilisateur", "courriel", # French
+    "benutzername", "kennung", "benutzer", # German
+    "gebruikersnaam", # Dutch
+    "nome_utente", # Italian
+    "usuário", # Portuguese
+    "логин", "имя_пользователя", # Russian
+
+    # Framework & Application Specific
     "j_username", # Java EE
     "session[username_or_email]", # Devise-like (Ruby on Rails)
     "user[email]", # Devise-like
     "user[login]", # Devise-like
+    "signin[username]", "login[username]", "login[email]",
+    "_username", # Symfony
     "vb_login_username", # vBulletin
     "auth[login]",
-    "handle", # Common for social media/forums
-    "alias",
-    "account_name",
-    "member_name",
-    "customer_id",
-    "principal" # More generic term
+
+    # Other common terms
+    "handle", "alias", "account_name", "member_name", "customer_id", "principal"
 ]
 
 COMMON_PASSWORD_FIELDS = [
-    # Standard & Common
+    # Standard & Common (English)
     "password", "pass", "passwd", "pwd", "secret", "passcode", "user_password",
-    "login_password", "txt_password", "inputPassword", "password_field",
+    "login_password", "txt_password", "inputPassword", "password_field", "pass_word",
+    "pin", "secretkey", "pass_phrase", "passphrase", "secret_word", "pin_code",
+    "userpass", "passwordText", "password_input",
+    "Password", "Pass", "PASSWORD", # Case-sensitive variations
+
+    # International (Spanish, French, German, Dutch, Italian, Portuguese, Russian)
+    "contraseña", "clave", # Spanish
+    "mot_de_passe", # French
+    "passwort", "kennwort", # German
+    "wachtwoord", # Dutch
+    "senha", # Portuguese
+    "пароль", # Russian
+
+    # Framework & Application Specific
     "j_password", # Java EE
     "session[password]", # Devise-like
     "user[password]", # Devise-like
+    "signin[password]", "login[password]",
+    "_password", # Symfony
     "vb_login_password", # vBulletin
     "auth[password]",
-    "pin", # Often for numeric, but sometimes used
-    "secretkey",
-    "pass_phrase", "passphrase",
-    "password_confirmation", # Often paired, but the main one is still "password"
-    "current_password", # For password change forms
-    "new_password",
-    "confirm_password",
-    "userpass",
-    "passwordText",
-    "password_input",
-    "Password", # Case-sensitive variations
-    "Pass",
-    "PASSWORD"
+    "field-login-password",
+
+    # Password confirmation/change forms (less likely for login, but good to have)
+    "password_confirmation", "current_password", "new_password", "confirm_password"
 ]
 
 COMMON_CSRF_TOKEN_FIELDS = [
