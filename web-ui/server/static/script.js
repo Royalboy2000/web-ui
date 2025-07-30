@@ -477,6 +477,36 @@ window.StrykerState = {
         logDetailsModal.style.display = 'flex';
     }
 
+    function flagSimilarRequests(logIndex, flag) {
+        const originalEntry = logEntries[logIndex];
+        if (!originalEntry || originalEntry.response_body === undefined) {
+            console.warn('Cannot flag request without a response body.', originalEntry);
+            return;
+        }
+        const originalResponseBody = originalEntry.response_body;
+
+        logEntries.forEach((entry, index) => {
+            if (entry.response_body === originalResponseBody) {
+                // Update the log entry
+                entry.status = flag;
+
+                // Update the table UI
+                const row = liveFeedTbody.querySelector(`tr[data-log-index="${index}"]`);
+                if (row) {
+                    const statusCell = row.cells[4]; // Assuming status is the 5th column
+                    if (statusCell) {
+                        statusCell.textContent = flag.toUpperCase();
+                        const newStatus = flag.toLowerCase().replace(/ /g, '_');
+                        row.dataset.status = newStatus;
+                        statusCell.className = `status-${newStatus}`;
+                    }
+                }
+            }
+        });
+        // Re-apply filter to show/hide the newly flagged rows correctly.
+        applyLogFilter();
+    }
+
     function resetAttackMetrics() {
         currentAttempts = 0; hits = 0; totalExpectedAttempts = 0;
         logEntries = [];
@@ -573,12 +603,27 @@ window.StrykerState = {
         row.insertCell().textContent = data.status_code || 'N/A';
         row.insertCell().textContent = data.content_length === -1 ? 'N/A' : (data.content_length === undefined ? 'N/A' : data.content_length);
 
-        const detailsButton = document.createElement('button');
-        detailsButton.className = 'button button-secondary button-sm';
-        detailsButton.textContent = 'View';
-        // CORRECTED: Use the captured currentIndex for this specific button's onclick handler
-        detailsButton.onclick = () => showLogDetails(currentIndex);
-        row.insertCell().appendChild(detailsButton);
+        const detailsCell = row.insertCell();
+
+        const viewButton = document.createElement('button');
+        viewButton.className = 'button button-secondary button-sm';
+        viewButton.textContent = 'View';
+        viewButton.onclick = () => showLogDetails(currentIndex);
+        detailsCell.appendChild(viewButton);
+
+        const falsePositiveButton = document.createElement('button');
+        falsePositiveButton.className = 'button button-secondary button-sm';
+        falsePositiveButton.textContent = 'False Positive';
+        falsePositiveButton.style.marginLeft = '4px';
+        falsePositiveButton.onclick = () => flagSimilarRequests(currentIndex, 'False Positive');
+        detailsCell.appendChild(falsePositiveButton);
+
+        const falseNegativeButton = document.createElement('button');
+        falseNegativeButton.className = 'button button-secondary button-sm';
+        falseNegativeButton.textContent = 'False Negative';
+        falseNegativeButton.style.marginLeft = '4px';
+        falseNegativeButton.onclick = () => flagSimilarRequests(currentIndex, 'False Negative');
+        detailsCell.appendChild(falseNegativeButton);
 
         applyLogFilter();
 
