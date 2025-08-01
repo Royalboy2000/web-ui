@@ -1,5 +1,6 @@
 import re
 import logging
+import argparse
 from urllib.parse import urlparse
 
 def parse_auth_content_enhanced(file_content_string):
@@ -31,16 +32,6 @@ def parse_auth_content_enhanced(file_content_string):
         if not line or line.startswith('#'):  # Skip empty lines and comments
             continue
 
-        try:
-            # First, try to parse as URL with credentials
-            parsed_url = urlparse(line)
-            if parsed_url.username and parsed_url.password:
-                credentials.append((parsed_url.username, parsed_url.password))
-                continue
-        except Exception:
-            pass
-
-        # Enhanced parsing for various formats
         username, password = extract_credentials_enhanced(line, email_pattern)
 
         if username and password:
@@ -59,65 +50,36 @@ def extract_credentials_enhanced(line, email_pattern):
     - complex strings with embedded credentials
     - malformed entries with multiple colons
     """
-
-    # Method 1: Standard colon separation
-    if ':' in line:
-        parts = line.split(':')
-
-        # Handle simple case: exactly 2 parts
-        if len(parts) == 2:
-            username, password = parts[0].strip(), parts[1].strip()
-            if is_valid_credential_pair(username, password, email_pattern):
-                return username, password
-
-        # Handle complex case: multiple colons
-        elif len(parts) > 2:
-            # Try different combinations
-
-            # Strategy 1: Last part as password, second-to-last as username
-            password = parts[-1].strip()
-            username = parts[-2].strip()
-            if is_valid_credential_pair(username, password, email_pattern):
-                return username, password
-
-            # Strategy 2: Find email in any part, use last part as password
-            for part in parts[:-1]:
-                if email_pattern.match(part.strip()):
-                    username = part.strip()
-                    password = parts[-1].strip()
-                    if is_valid_credential_pair(username, password, email_pattern):
-                        return username, password
-
-            # Strategy 3: First part as username, last as password
-            username = parts[0].strip()
-            password = parts[-1].strip()
-            if is_valid_credential_pair(username, password, email_pattern):
-                return username, password
-
-    # Method 2: Space separation (fallback)
-    if ' ' in line:
-        parts = line.split()
-        if len(parts) >= 2:
-            # Look for email pattern
-            for i, part in enumerate(parts):
-                if email_pattern.match(part) and i + 1 < len(parts):
-                    username = part
-                    password = parts[i + 1]
-                    if is_valid_credential_pair(username, password, email_pattern):
-                        return username, password
-
-    # Method 3: Extract email and assume rest is password
+    # Try to find an email
     email_match = email_pattern.search(line)
     if email_match:
-        email = email_match.group()
-        # Remove email from line and use remainder as password
-        remaining = line.replace(email, '').strip()
-        # Remove common separators
-        remaining = re.sub(r'^[:\s]+|[:\s]+$', '', remaining)
-        if remaining and len(remaining) > 2:  # Reasonable password length
-            return email, remaining
+        username = email_match.group()
+
+        # Try to find password after the email
+        password_part = line[email_match.end():]
+        password = re.sub(r'^[:\s|]+', '', password_part).strip()
+        if is_valid_credential_pair(username, password, email_pattern):
+            return username, password
+
+        # Try to find password before the email
+        password_part = line[:email_match.start()]
+        password = re.sub(r'[:\s|]+$', '', password_part).strip()
+        if is_valid_credential_pair(username, password, email_pattern):
+             return username, password
+
+    # Fallback for non-email usernames
+    parts = re.split(r'[:|\s]', line)
+    parts = [p for p in parts if p] # remove empty strings
+    if len(parts) >= 2:
+        # Assume last part is password
+        password = parts[-1]
+        # Assume part before password is username
+        username = parts[-2]
+        if is_valid_credential_pair(username, password, email_pattern):
+            return username, password
 
     return None, None
+
 
 def is_valid_credential_pair(username, password, email_pattern):
     """
@@ -125,37 +87,41 @@ def is_valid_credential_pair(username, password, email_pattern):
     """
     if not username or not password:
         return False
-
-    # Username should be reasonable length
-    if len(username) < 3 or len(username) > 100:
+    if ' ' in username or ' ' in password:
         return False
-
-    # Password should be reasonable length
-    if len(password) < 1 or len(password) > 200:
+    if len(username) < 3 or len(username) > 200:
         return False
+    if len(password) < 3 or len(password) > 500:
+        return False
+    if urlparse(username).scheme or urlparse(password).scheme:
+        return False
+    if not email_pattern.match(username):
+        if '@' in username:
+            return False # not a valid email, but has @
+        if len(username.split('.')) > 2: # probably a domain name
+            return False
+    return True
 
-    # Username should be email or reasonable username
-    if email_pattern.match(username):
-        return True
-
-    # Or reasonable username pattern (alphanumeric with some special chars)
-    if re.match(r'^[a-zA-Z0-9._@-]+$', username):
-        return True
-
-    return False
 
 def test_enhanced_parser():
     """
     Test function to validate the enhanced parser
     """
-    test_data = """01lilopad02@gmail.com:Lilo0102padD
-041980@wp.pl:8h/ssJ-*R*BXtQv
-0535494768:Hassan113
-09Pomidor09:app.fakturownia.pl/signupciupakwiktor@o2.pl
-1070747@gmail.com:WIka2mark
-123takis123iga@gmail.com:H@PLW74WghZwd%s
+    test_data = """
+# Valid credentials
+01lilopad02@gmail.com:Lilo0102padD
+user@example.com|password123
+https://login.salesforce.com/:lsilva@grupoviro.com.br:Zt8@Wq2#LpVy
+https://mail.govmail.ke/|bsausi@kmfri.go.ke|B.123sausi
+apply.deloitte.com/careers/Register:mandalojuswetha9018@gmail.com:Swetha@2403
 527BWkQY@y.uaFx:arkadiusz2000@gmail.com
-661slaw@gmail.com:Fr4WW+@cKtA5SZL"""
+
+# Malformed credentials
+041980@wp.pl:8h/ssJ-*R*BXtQv:extra_field
+ leading.space@example.com : trailing.space.password
+user@example.com:
+:password
+"""
 
     credentials = parse_auth_content_enhanced(test_data)
     print(f"Parsed {len(credentials)} credentials:")
@@ -164,5 +130,29 @@ def test_enhanced_parser():
 
     return credentials
 
+def main():
+    parser = argparse.ArgumentParser(description="Extract credentials from a file.")
+    parser.add_argument("file_path", help="Path to the file containing credentials.")
+    args = parser.parse_args()
+
+    logging.basicConfig(level=logging.INFO)
+
+    try:
+        with open(args.file_path, 'r', encoding='utf-8', errors='ignore') as f:
+            content = f.read()
+            credentials = parse_auth_content_enhanced(content)
+            print(f"Found {len(credentials)} credentials in {args.file_path}:")
+            for username, password in credentials:
+                print(f"  Username: {username}, Password: {password}")
+    except FileNotFoundError:
+        print(f"Error: File not found at {args.file_path}")
+    except Exception as e:
+        print(f"An error occurred: {e}")
+
 if __name__ == "__main__":
-    test_enhanced_parser()
+    # To run tests, uncomment the following line
+    # test_enhanced_parser()
+
+    # To run from command line:
+    # python enhanced_credential_parser.py <path_to_file>
+    main()
