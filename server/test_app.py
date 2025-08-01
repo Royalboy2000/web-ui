@@ -48,12 +48,12 @@ class TestAuthContentParsing(unittest.TestCase): # Renamed class
     def test_parse_auth_content_malformed_lines(self): # Renamed test
         content_string = "user1:\n:pass2\njusttext\nuser3:pass3\n: \n :pass4\nuser5:"
         # Suppress warnings during this test for cleaner output
-        with patch.object(app.logger, 'warning') as mock_logger_warning:
+        with patch('common_parsers.logging') as mock_logging:
             creds = parse_auth_content(content_string)
             self.assertEqual(len(creds), 1)
             self.assertIn(("user3", "pass3"), creds)
             # Check that warnings were logged for malformed lines
-            self.assertGreaterEqual(mock_logger_warning.call_count, 6)
+            self.assertGreaterEqual(mock_logging.warning.call_count, 6)
 
 
     def test_parse_auth_content_empty_string(self): # Renamed test

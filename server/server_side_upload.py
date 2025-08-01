@@ -59,47 +59,7 @@ def extract_credentials_from_file(file_path):
 
     return credentials
 
-def parse_credentials_enhanced(content):
-    """Enhanced credential parsing that handles multiple formats"""
-    credentials = []
-    lines = content.strip().split('\n')
-
-    for line in lines:
-        line = line.strip()
-        if not line or line.startswith('#'):
-            continue
-
-        try:
-            # Handle multiple colon separators by finding the last one
-            if ':' in line:
-                # Split on last colon to handle complex formats
-                parts = line.rsplit(':', 1)
-                if len(parts) == 2:
-                    username_part, password = parts
-
-                    # Extract email from complex username part
-                    email_match = re.search(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}', username_part)
-                    if email_match:
-                        username = email_match.group()
-                    else:
-                        # If no email found, use the whole username part
-                        username = username_part.strip()
-
-                    # Clean up username and password
-                    username = username.strip()
-                    password = password.strip()
-
-                    if username and password:
-                        credentials.append({
-                            'username': username,
-                            'password': password
-                        })
-
-        except Exception as e:
-            print(f"Error parsing line '{line}': {e}")
-            continue
-
-    return credentials
+from common_parsers import parse_auth_content as parse_credentials_enhanced
 
 def get_credentials_summary(credentials):
     """Get summary statistics for credentials"""
