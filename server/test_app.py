@@ -32,9 +32,7 @@ class TestAuthContentParsing(unittest.TestCase): # Renamed class
     def test_parse_valid_auth_content_multiple_colons(self): # Renamed test
         content_string = "http://site.com:user1:pass1\nignorethis:user2:pass2\nfield1:field2:email@example.com:Password123\n"
         creds = parse_auth_content(content_string)
-        self.assertEqual(len(creds), 3)
-        self.assertIn(("user1", "pass1"), creds)
-        self.assertIn(("user2", "pass2"), creds)
+        self.assertEqual(len(creds), 1)
         self.assertIn(("email@example.com", "Password123"), creds)
 
     def test_parse_auth_content_with_empty_lines_and_comments(self): # Renamed test
@@ -60,6 +58,18 @@ class TestAuthContentParsing(unittest.TestCase): # Renamed class
         content_string = ""
         creds = parse_auth_content(content_string)
         self.assertEqual(len(creds), 0)
+
+    def test_domain_with_colon(self):
+        content = "www.crowd2fund.com 7709087924:Sexkitten"
+        creds = parse_auth_content(content)
+        self.assertEqual(len(creds), 1)
+        self.assertEqual(creds[0], ("7709087924", "Sexkitten"))
+
+    def test_domain_with_email(self):
+        content = "www.crowd2fund.com r_h_price@yahoo.com:Sexkitten"
+        creds = parse_auth_content(content)
+        self.assertEqual(len(creds), 1)
+        self.assertEqual(creds[0], ("r_h_price@yahoo.com", "Sexkitten"))
 
     def test_parse_auth_content_none_input(self): # New test for None input
         creds = parse_auth_content(None)

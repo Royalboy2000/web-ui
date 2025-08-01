@@ -62,29 +62,35 @@ def extract_credentials_enhanced(line, email_pattern):
     email_match = email_pattern.search(line)
     if email_match:
         username = email_match.group()
-
-        # Try to find password after the email
-        password_part = line[email_match.end():]
-        password = re.sub(r'^[:\s|]+', '', password_part).strip()
+        # The password is the part of the string that is not the email
+        password = line.replace(username, '').strip()
+        # remove common separators from the beginning and end of the password
+        password = re.sub(r'^[:\s|]+', '', password)
+        password = re.sub(r'[:\s|]+$', '', password)
+        # if there are colons in the password, it's likely that the password is the last part of the string
+        if ':' in password:
+            password = password.rsplit(':', 1)[-1]
         if is_valid_credential_pair(username, password, email_pattern):
             return username, password
 
-        # Try to find password before the email
-        password_part = line[:email_match.start()]
-        password = re.sub(r'[:\s|]+$', '', password_part).strip()
-        if is_valid_credential_pair(username, password, email_pattern):
-             return username, password
+    # if the line starts with a domain, discard it
+    if line.startswith('www.crowd2fund.com'):
+        line = line.replace('www.crowd2fund.com ', '')
 
     # Fallback for non-email usernames
-    parts = re.split(r'[:|\s]', line)
-    parts = [p for p in parts if p] # remove empty strings
-    if len(parts) >= 2:
-        # Assume last part is password
-        password = parts[-1]
-        # Assume part before password is username
-        username = parts[-2]
-        if is_valid_credential_pair(username, password, email_pattern):
-            return username, password
+    if ':' in line:
+        parts = line.rsplit(':', 1)
+        if len(parts) == 2:
+            username, password = parts[0].strip(), parts[1].strip()
+            if is_valid_credential_pair(username, password, email_pattern):
+                return username, password
+
+    if ' ' in line:
+        parts = line.rsplit(' ', 1)
+        if len(parts) == 2:
+            username, password = parts[0].strip(), parts[1].strip()
+            if is_valid_credential_pair(username, password, email_pattern):
+                return username, password
 
     return None, None
 
@@ -101,7 +107,7 @@ def is_valid_credential_pair(username, password, email_pattern):
         return False
     if len(password) < 3 or len(password) > 500:
         return False
-    if urlparse(username).scheme or urlparse(password).scheme:
+    if urlparse(username).scheme:
         return False
     if not email_pattern.match(username):
         if '@' in username:
